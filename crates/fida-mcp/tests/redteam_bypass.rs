@@ -126,3 +126,31 @@ fn redteam_allowed_source_file_still_redacts_embedded_provider_key() {
     assert!(!text.contains(secret));
     assert!(text.contains(fida_secrets::REDACTION_MARKER));
 }
+
+#[test]
+fn redteam_allowed_source_file_redacts_openai_project_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let secret = [
+        "sk",
+        "-proj-",
+        "0123456789abcdefghijklmnopqrstuv",
+        "_",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcd",
+        "-",
+        "efghijklmnopqrstuvwxyz012345",
+    ]
+    .concat();
+    std::fs::write(
+        dir.path().join("person.js"),
+        format!(r#"export const firstName = "{secret}";"#),
+    )
+    .unwrap();
+
+    let srv = GatewayServer::new(builtin_policy(), dir.path().to_path_buf());
+    let resp = roundtrip(&srv, &read_call("person.js"));
+
+    assert_eq!(resp["result"]["isError"], false);
+    let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(!text.contains(&secret));
+    assert!(text.contains(fida_secrets::REDACTION_MARKER));
+}

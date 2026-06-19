@@ -615,6 +615,28 @@ mod tests {
         assert_eq!(sink.stdout, vec![rendered]);
     }
 
+    #[test]
+    fn captured_openai_project_key_is_redacted_before_recording() {
+        let red = redactor();
+        let mut sink = CapturingSink::default();
+        let secret = [
+            "sk",
+            "-proj-",
+            "0123456789abcdefghijklmnopqrstuv",
+            "_",
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcd",
+            "-",
+            "efghijklmnopqrstuvwxyz012345",
+        ]
+        .concat();
+        let raw = format!(r#"export const firstName = "{secret}";"#);
+        let rendered = redact_and_record(&mut sink, &red, OutputStream::Stdout, raw.as_bytes());
+
+        assert!(!rendered.contains(&secret));
+        assert!(rendered.contains(fida_secrets::REDACTION_MARKER));
+        assert_eq!(sink.stdout, vec![rendered]);
+    }
+
     #[cfg(unix)]
     #[test]
     fn run_propagates_nonzero_exit_code() {

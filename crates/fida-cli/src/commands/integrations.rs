@@ -29,6 +29,15 @@ const BLOCK_END: &str = "<!-- FIDA:END -->";
 /// The MCP server key Fida owns inside the server map.
 const SERVER_KEY: &str = "fida";
 
+#[cfg(target_os = "macos")]
+const VSCODE_USER_MCP_PATH: &str = "Library/Application Support/Code/User/mcp.json";
+#[cfg(target_os = "linux")]
+const VSCODE_USER_MCP_PATH: &str = ".config/Code/User/mcp.json";
+#[cfg(target_os = "windows")]
+const VSCODE_USER_MCP_PATH: &str = "AppData/Roaming/Code/User/mcp.json";
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+const VSCODE_USER_MCP_PATH: &str = ".config/Code/User/mcp.json";
+
 /// Install scope: per-repo or per-user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
@@ -108,6 +117,8 @@ pub struct McpSpec {
 pub enum McpShape {
     /// `{command, args, disabled, autoApprove}` — Kiro, Cursor, Claude, …
     Standard,
+    /// `{type: "local", command: [...], enabled}` — OpenCode.
+    OpenCodeLocal,
     /// `{type: "stdio", command, args}` — VS Code / GitHub Copilot.
     VscodeStdio,
 }
@@ -117,6 +128,16 @@ pub enum McpShape {
 pub struct SkillSpec {
     pub path: Located,
     pub style: SkillStyle,
+    pub global_style: Option<SkillStyle>,
+}
+
+impl SkillSpec {
+    fn style(self, scope: Scope) -> SkillStyle {
+        match scope {
+            Scope::Project => self.style,
+            Scope::Global => self.global_style.unwrap_or(self.style),
+        }
+    }
 }
 
 /// How an agent's preToolUse hook is wired.
@@ -124,6 +145,8 @@ pub struct SkillSpec {
 pub enum HookTarget {
     /// A standalone Kiro `.kiro.hook` JSON file (askAgent backstop).
     KiroFile(Located),
+    /// A standalone VS Code / Copilot hook file under `.github/hooks`.
+    CommandFile(Located),
     /// A `hooks.PreToolUse` entry merged into a shared settings JSON file,
     /// calling `fida hook` to hard-block denied tool calls (Claude Code, Codex).
     Settings {
@@ -137,6 +160,7 @@ impl HookTarget {
     fn path(&self, scope: Scope) -> Option<&'static str> {
         match self {
             HookTarget::KiroFile(l) => l.path(scope),
+            HookTarget::CommandFile(l) => l.path(scope),
             HookTarget::Settings { path, .. } => path.path(scope),
         }
     }
@@ -165,6 +189,7 @@ pub struct AgentSpec {
 pub fn known_agents() -> Vec<AgentSpec> {
     const FM_KIRO: &[(&str, &str)] = &[("inclusion", "always")];
     const FM_CURSOR: &[(&str, &str)] = &[("alwaysApply", "true")];
+    const FM_COPILOT: &[(&str, &str)] = &[("applyTo", "\"**\"")];
     vec![
         AgentSpec {
             id: "codex",
@@ -174,6 +199,7 @@ pub fn known_agents() -> Vec<AgentSpec> {
             skill: SkillSpec {
                 path: Located::new(Some("AGENTS.md"), Some(".codex/AGENTS.md")),
                 style: SkillStyle::ManagedBlock,
+                global_style: None,
             },
             // Codex hooks intercept Bash and apply_patch (its read/edit paths).
             hook: Some(HookTarget::Settings {
@@ -195,6 +221,7 @@ pub fn known_agents() -> Vec<AgentSpec> {
             skill: SkillSpec {
                 path: Located::new(Some("CLAUDE.md"), Some(".claude/CLAUDE.md")),
                 style: SkillStyle::ManagedBlock,
+                global_style: None,
             },
             // Real hard block: PreToolUse denies policy blocks and native reads
             // whose content contains a detected secret.
@@ -224,6 +251,7 @@ pub fn known_agents() -> Vec<AgentSpec> {
                 // refuse secret files, and fell back to a native read.
                 path: Located::new(Some("AGENTS.md"), Some(".gemini/GEMINI.md")),
                 style: SkillStyle::ManagedBlock,
+                global_style: None,
             },
             hook: None,
             detect_files: &[".gemini", ".antigravity"],
@@ -241,6 +269,7 @@ pub fn known_agents() -> Vec<AgentSpec> {
             skill: SkillSpec {
                 path: Located::both(".kiro/steering/fida.md"),
                 style: SkillStyle::Frontmatter(FM_KIRO),
+                global_style: None,
             },
             hook: Some(HookTarget::KiroFile(Located::both(
                 ".kiro/hooks/fida-guard.kiro.hook",
@@ -261,6 +290,7 @@ pub fn known_agents() -> Vec<AgentSpec> {
                 // Cursor project rules are files; global user rules are not.
                 path: Located::new(Some(".cursor/rules/fida.mdc"), None),
                 style: SkillStyle::Frontmatter(FM_CURSOR),
+                global_style: None,
             },
             hook: None,
             detect_files: &[".cursor"],
@@ -272,16 +302,23 @@ pub fn known_agents() -> Vec<AgentSpec> {
             display: "GitHub Copilot",
             mcp: Some(McpSpec {
                 // VS Code uses the `servers` key and a `{type:stdio}` entry.
-                path: Located::new(Some(".vscode/mcp.json"), None),
+                path: Located::new(Some(".vscode/mcp.json"), Some(VSCODE_USER_MCP_PATH)),
                 key: "servers",
                 shape: McpShape::VscodeStdio,
             }),
             skill: SkillSpec {
-                path: Located::new(Some(".github/copilot-instructions.md"), None),
+                path: Located::new(
+                    Some(".github/copilot-instructions.md"),
+                    Some(".copilot/instructions/fida.instructions.md"),
+                ),
                 style: SkillStyle::ManagedBlock,
+                global_style: Some(SkillStyle::Frontmatter(FM_COPILOT)),
             },
-            hook: None,
-            detect_files: &[".vscode", ".github/copilot-instructions.md"],
+            hook: Some(HookTarget::CommandFile(Located::new(
+                Some(".github/hooks/fida.json"),
+                Some(".copilot/hooks/fida.json"),
+            ))),
+            detect_files: &[".vscode", ".github/copilot-instructions.md", ".copilot"],
             detect_bins: &["code"],
             detect_apps: &["Visual Studio Code.app"],
         },
@@ -300,6 +337,7 @@ pub fn known_agents() -> Vec<AgentSpec> {
                     Some(".codeium/windsurf/memories/global_rules.md"),
                 ),
                 style: SkillStyle::ManagedBlock,
+                global_style: None,
             },
             hook: None,
             detect_files: &[".windsurf", ".codeium"],
@@ -315,11 +353,12 @@ pub fn known_agents() -> Vec<AgentSpec> {
                     Some(".config/opencode/opencode.json"),
                 ),
                 key: "mcp",
-                shape: McpShape::Standard,
+                shape: McpShape::OpenCodeLocal,
             }),
             skill: SkillSpec {
                 path: Located::new(Some("OPENCODE.md"), Some(".config/opencode/OPENCODE.md")),
                 style: SkillStyle::ManagedBlock,
+                global_style: None,
             },
             hook: None,
             detect_files: &[".opencode", ".config/opencode", "opencode.json"],
@@ -380,7 +419,7 @@ pub struct AgentCoverage {
 /// its [`HookTarget`]).
 pub fn backstop_of(spec: &AgentSpec) -> Backstop {
     match spec.hook {
-        Some(HookTarget::Settings { .. }) => Backstop::HardBlock,
+        Some(HookTarget::Settings { .. } | HookTarget::CommandFile(_)) => Backstop::HardBlock,
         Some(HookTarget::KiroFile(_)) => Backstop::SoftPrompt,
         None => Backstop::SkillOnly,
     }
@@ -485,10 +524,6 @@ pub fn protection_level(
     report: &AgentInstallReport,
     self_test_passed: bool,
 ) -> ProtectionLevel {
-    if !self_test_passed {
-        return ProtectionLevel::Incomplete;
-    }
-
     let installed = |label: &str| report.layers.iter().any(|layer| layer.label == label);
     let skill_expected = spec.skill.path.path(scope).is_some();
     let gateway_expected = spec
@@ -497,10 +532,17 @@ pub fn protection_level(
         .is_some_and(|m| m.path.path(scope).is_some());
     let hook_expected = spec.hook.as_ref().is_some_and(|h| h.path(scope).is_some());
 
+    if !skill_expected && !gateway_expected && !hook_expected {
+        return ProtectionLevel::Inactive;
+    }
+
+    if !self_test_passed {
+        return ProtectionLevel::Incomplete;
+    }
+
     if (skill_expected && !installed("skill"))
         || (gateway_expected && !installed("gateway"))
         || (hook_expected && !installed("hook"))
-        || (!skill_expected && !gateway_expected && !hook_expected)
     {
         return ProtectionLevel::Incomplete;
     }
@@ -539,7 +581,7 @@ pub fn install_agent(
 
     if let Some(rel) = spec.skill.path.path(scope) {
         let path = base.join(rel);
-        write_skill(&path, &spec.skill.style)?;
+        write_skill(&path, &spec.skill.style(scope))?;
         layers.push(WrittenLayer {
             label: "skill",
             path: path.display().to_string(),
@@ -551,6 +593,7 @@ pub fn install_agent(
             let path = base.join(rel);
             match hook {
                 HookTarget::KiroFile(_) => write_file(&path, &kiro_hook_contents())?,
+                HookTarget::CommandFile(_) => write_file(&path, &command_hook_contents(fida_bin))?,
                 HookTarget::Settings { matcher, .. } => {
                     upsert_settings_hook(&path, matcher, fida_bin)?
                 }
@@ -593,7 +636,7 @@ pub fn uninstall_agent(
         }
     }
     if let Some(rel) = spec.skill.path.path(scope) {
-        if remove_skill(&base.join(rel), &spec.skill.style)? {
+        if remove_skill(&base.join(rel), &spec.skill.style(scope))? {
             removed.push("skill");
         }
     }
@@ -601,7 +644,7 @@ pub fn uninstall_agent(
         if let Some(rel) = hook.path(scope) {
             let path = base.join(rel);
             let hook_removed = match hook {
-                HookTarget::KiroFile(_) => remove_if_present(&path)?,
+                HookTarget::KiroFile(_) | HookTarget::CommandFile(_) => remove_if_present(&path)?,
                 HookTarget::Settings { .. } => remove_settings_hook(&path)?,
             };
             if hook_removed {
@@ -668,7 +711,6 @@ fn remove_mcp_server(path: &Path, map_key: &str) -> CliResult<bool> {
 /// `fida mcp serve` resolves the workspace and per-repo policy from its runtime
 /// cwd (falling back to Fida's built-in redaction-first policy) — that is what
 /// makes one global install guard every repo.
-/// `fida_read` is auto-approved (read-only and still policy-gated).
 fn fida_server_entry(fida_bin: &Path, scope: Scope, workspace: &Path, shape: McpShape) -> Value {
     let args = match scope {
         Scope::Project => json!([
@@ -694,6 +736,23 @@ fn fida_server_entry(fida_bin: &Path, scope: Scope, workspace: &Path, shape: Mcp
             "disabled": false,
             "autoApprove": [READ_TOOL],
         }),
+        // OpenCode: local MCP config requires an enabled local server and the
+        // full command as an array.
+        McpShape::OpenCodeLocal => {
+            let mut command = vec![command];
+            if let Some(args) = args.as_array() {
+                command.extend(
+                    args.iter()
+                        .filter_map(Value::as_str)
+                        .map(ToString::to_string),
+                );
+            }
+            json!({
+                "type": "local",
+                "command": command,
+                "enabled": true,
+            })
+        }
     }
 }
 
@@ -820,13 +879,22 @@ fn skill_markdown() -> String {
     format!(
         "# Fida guardrails (MANDATORY)\n\n\
          This workspace is guarded by Fida, a local-first secret leak prevention\n\
-         layer. Native file/shell tools cannot redact their output before it reaches\n\
-         you, so you MUST route reads and commands through Fida whenever available.\n\n\
+         layer. Native tools and non-Fida MCP tools cannot guarantee redaction\n\
+         before output reaches you, so you MUST route reads and commands through\n\
+         Fida whenever available.\n\n\
          ## Rules\n\n\
-         - NEVER read a file with a native tool when the `{read}` MCP tool is\n\
-         \x20\x20available. Use `{read}` for every file read.\n\
-         - NEVER run a shell command with a native tool when the `{shell}` MCP\n\
-         \x20\x20tool is available. Use `{shell}` for every command.\n\
+         - NEVER read a file with a native tool or a non-Fida MCP/file-context\n\
+         \x20\x20tool when the `{read}` MCP tool is available. Use `{read}` for every\n\
+         \x20\x20file read.\n\
+         - NEVER use `ctx_read`, `lean-ctx`, filesystem/read-file MCP tools,\n\
+         \x20\x20workspace context, reviewed-file context, or other non-Fida helpers to\n\
+         \x20\x20inspect file contents. They can bypass Fida redaction.\n\
+         - NEVER run a shell command with a native tool or non-Fida MCP shell\n\
+         \x20\x20tool when the `{shell}` MCP tool is available. Use `{shell}` for every\n\
+         \x20\x20command.\n\
+         - If raw file content appears from a non-Fida tool or ambient context,\n\
+         \x20\x20treat it as tainted: do not quote it, do not summarize secret-like\n\
+         \x20\x20values, and immediately re-read through `{read}` before answering.\n\
          - Sensitive files may be read through `{read}` when policy allows it.\n\
          \x20\x20Fida returns a safe view with detected values redacted; never try to\n\
          \x20\x20recover, reconstruct, or bypass those redactions.\n\
@@ -857,18 +925,20 @@ fn kiro_hook_contents() -> String {
     let hook = json!({
         "name": "Fida Guard",
         "version": "1.0.0",
-        "description": "Route native file reads/writes through Fida policy before they run.",
+        "description": "Route file reads/writes through Fida policy before they run.",
         "when": { "type": "preToolUse", "toolTypes": ["read", "write"] },
         "then": {
             "type": "askAgent",
             "prompt":
-                "A native file read or write is about to run. Before proceeding, evaluate the \
+                "A file read or write is about to run. Before proceeding, evaluate the \
                  target path against the Fida policy: run `fida policy explain file-read <path>` \
                  for a read or `fida policy explain file-write <path>` for a write. If the \
                  decision is `deny`, do NOT perform the operation — tell the user it is blocked \
                  by Fida policy and cite the matched rule. If the decision is `ask`, pause and \
-                 get explicit user confirmation first. If `allow`, proceed. Prefer the \
-                 `fida_read` / `fida_shell` gateway tools when available."
+                 get explicit user confirmation first. If `allow`, proceed only through \
+                 `fida_read` / `fida_shell` when those gateway tools are available. Do not use \
+                 ctx_read, lean-ctx, workspace context, reviewed-file context, or other non-Fida \
+                 file-content tools to inspect file contents."
         }
     });
     format!(
@@ -878,13 +948,32 @@ fn kiro_hook_contents() -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Settings-merged PreToolUse hook (Claude Code, Codex) — real hard block
+// Command PreToolUse hooks (Claude Code, Codex, VS Code) — real hard block
 // ---------------------------------------------------------------------------
 
 /// The shell command both agents invoke for the gate. Quoted so a binary path
 /// with spaces survives the agent's shell tokenization.
 fn fida_hook_command(fida_bin: &Path) -> String {
     format!("\"{}\" hook", fida_bin.display())
+}
+
+/// A dedicated hook file for clients such as VS Code / GitHub Copilot.
+fn command_hook_contents(fida_bin: &Path) -> String {
+    let hook = json!({
+        "hooks": {
+            "PreToolUse": [
+                {
+                    "type": "command",
+                    "command": fida_hook_command(fida_bin),
+                    "timeout": 15
+                }
+            ]
+        }
+    });
+    format!(
+        "{}\n",
+        serde_json::to_string_pretty(&hook).expect("hook json encodes")
+    )
 }
 
 /// Whether a `PreToolUse` matcher group is one Fida wrote (so install is
@@ -1151,8 +1240,19 @@ mod tests {
         let s = std::fs::read_to_string(dir.path().join(".kiro/steering/fida.md")).unwrap();
         assert!(s.starts_with("---\ninclusion: always\n---\n"));
         assert!(s.contains("MANDATORY"));
-        assert!(s.contains("NEVER read a file with a native tool"));
+        assert!(s.contains("NEVER read a file with a native tool or a non-Fida MCP/file-context"));
+        assert!(s.contains("ctx_read"));
+        assert!(s.contains("reviewed-file context"));
         assert!(s.contains(READ_TOOL));
+    }
+
+    #[test]
+    fn kiro_hook_redirects_non_fida_file_tools() {
+        let hook: Value = serde_json::from_str(&kiro_hook_contents()).unwrap();
+        let prompt = hook["then"]["prompt"].as_str().unwrap();
+        assert!(prompt.contains("fida_read"));
+        assert!(prompt.contains("ctx_read"));
+        assert!(prompt.contains("reviewed-file context"));
     }
 
     #[test]
@@ -1211,16 +1311,44 @@ mod tests {
     }
 
     #[test]
+    fn opencode_uses_current_local_mcp_schema() {
+        let dir = tempdir().unwrap();
+        let spec = find_agent("opencode").unwrap();
+        install_project(&spec, dir.path());
+
+        let v: Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.path().join("opencode.json")).unwrap(),
+        )
+        .unwrap();
+        let fida = &v["mcp"]["fida"];
+        assert_eq!(fida["type"], "local");
+        assert_eq!(
+            fida["command"].as_array().unwrap(),
+            &[
+                json!("/usr/local/bin/fida"),
+                json!("mcp"),
+                json!("serve"),
+                json!("--workspace"),
+                json!(dir.path().display().to_string()),
+            ]
+        );
+        assert_eq!(fida["enabled"], true);
+        assert!(fida.get("args").is_none());
+        assert!(fida.get("disabled").is_none());
+        assert!(fida.get("autoApprove").is_none());
+    }
+
+    #[test]
     fn detect_matches_marker_dir() {
         let dir = tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".kiro")).unwrap();
         assert!(detect(&find_agent("kiro").unwrap(), dir.path(), None, None));
-        assert!(!detect(
-            &find_agent("cursor").unwrap(),
-            dir.path(),
-            None,
-            None
-        ));
+        let cursor = AgentSpec {
+            detect_bins: &[],
+            detect_apps: &[],
+            ..find_agent("cursor").unwrap()
+        };
+        assert!(!detect(&cursor, dir.path(), None, None));
     }
 
     #[test]
@@ -1340,7 +1468,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let spec = find_agent("copilot").unwrap();
         // Project scope: base == workspace.
-        install_agent(&spec, Scope::Project, dir.path(), dir.path(), &bin()).unwrap();
+        let report = install_agent(&spec, Scope::Project, dir.path(), dir.path(), &bin()).unwrap();
         let v: Value = serde_json::from_str(
             &std::fs::read_to_string(dir.path().join(".vscode/mcp.json")).unwrap(),
         )
@@ -1349,6 +1477,53 @@ mod tests {
         assert_eq!(v["servers"]["fida"]["type"], "stdio");
         assert_eq!(v["servers"]["fida"]["command"], "/usr/local/bin/fida");
         assert!(v["servers"]["fida"].get("autoApprove").is_none());
+
+        let hook: Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.path().join(".github/hooks/fida.json")).unwrap(),
+        )
+        .unwrap();
+        let command = hook["hooks"]["PreToolUse"][0]["command"].as_str().unwrap();
+        assert!(command.ends_with("fida\" hook"));
+        assert_eq!(hook["hooks"]["PreToolUse"][0]["type"], "command");
+        assert_eq!(hook["hooks"]["PreToolUse"][0]["timeout"], 15);
+        assert_eq!(report.layers.len(), 3);
+        assert_eq!(
+            protection_level(&spec, Scope::Project, &report, true),
+            ProtectionLevel::Enforced
+        );
+
+        let removed = uninstall_agent(&spec, Scope::Project, dir.path()).unwrap();
+        assert_eq!(removed.removed, vec!["gateway", "skill", "hook"]);
+        assert!(!dir.path().join(".github/hooks/fida.json").exists());
+    }
+
+    #[test]
+    fn copilot_global_install_writes_user_mcp_instructions_and_hook() {
+        let home = tempdir().unwrap();
+        let spec = find_agent("copilot").unwrap();
+        let report = install_agent(&spec, Scope::Global, home.path(), home.path(), &bin()).unwrap();
+
+        let mcp: Value = serde_json::from_str(
+            &std::fs::read_to_string(home.path().join(VSCODE_USER_MCP_PATH)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(mcp["servers"]["fida"]["type"], "stdio");
+
+        let instructions = std::fs::read_to_string(
+            home.path()
+                .join(".copilot/instructions/fida.instructions.md"),
+        )
+        .unwrap();
+        assert!(instructions.starts_with("---\napplyTo: \"**\"\n---\n"));
+        assert!(instructions.contains("Fida guardrails"));
+        assert!(home.path().join(".copilot/hooks/fida.json").exists());
+        assert_eq!(
+            protection_level(&spec, Scope::Global, &report, true),
+            ProtectionLevel::Enforced
+        );
+
+        let removed = uninstall_agent(&spec, Scope::Global, home.path()).unwrap();
+        assert_eq!(removed.removed, vec!["gateway", "skill", "hook"]);
     }
 
     #[test]
@@ -1368,8 +1543,9 @@ mod tests {
         // under-state an agent's real backstop.
         assert_eq!(row("claude").backstop, Backstop::HardBlock);
         assert_eq!(row("codex").backstop, Backstop::HardBlock);
+        assert_eq!(row("copilot").backstop, Backstop::HardBlock);
         assert_eq!(row("kiro").backstop, Backstop::SoftPrompt);
-        for id in ["cursor", "copilot", "windsurf", "antigravity"] {
+        for id in ["cursor", "windsurf", "antigravity"] {
             assert_eq!(row(id).backstop, Backstop::SkillOnly, "{id} is skill-only");
         }
 

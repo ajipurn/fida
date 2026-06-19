@@ -640,9 +640,10 @@ fn tools_list_response(id: Value) -> Value {
                 {
                     "name": READ_TOOL,
                     "description": "Read a file's text through Fida policy (files.read). \
-                                    Use this instead of native file reads so the policy can \
-                                    block secrets and other denied paths. Secret values in the \
-                                    returned content are redacted.",
+                                    Use this for every file read, ahead of native reads, \
+                                    workspace context, reviewed-file context, lean-ctx/ctx_read, \
+                                    or other MCP file tools, so policy can block denied paths and \
+                                    secret values in returned content are redacted.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -657,8 +658,9 @@ fn tools_list_response(id: Value) -> Value {
                 {
                     "name": SHELL_TOOL,
                     "description": "Run a command through Fida policy (commands.run). Use this \
-                                    instead of native shell execution so the policy can gate the \
-                                    command. Stdout/stderr are returned with secrets redacted.",
+                                    instead of native shell execution or non-Fida MCP shell tools \
+                                    so the policy can gate the command. Stdout/stderr are returned \
+                                    with secrets redacted.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {

@@ -843,6 +843,18 @@ mcp:
             .current_dir(dir.path())
             .output();
         write_policy(dir.path(), ".fida/policy.yaml", POLICY_WITH_MCP);
+        let setup = crate::commands::setup_state::SetupConfig::new(
+            crate::commands::setup_state::SetupScope::Project,
+            Vec::new(),
+            None,
+            Some(".fida/policy.yaml".to_string()),
+        );
+        crate::commands::setup_state::write_config(
+            &crate::commands::setup_state::project_setup_path(dir.path()),
+            &setup,
+            true,
+        )
+        .unwrap();
 
         let results = run_checks(dir.path(), None);
 

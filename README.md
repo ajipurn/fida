@@ -97,10 +97,11 @@ plus a policy-enforcing gateway:
 2. **Skill (steering)** — an always-included, assertive rules file that tells the
    agent it MUST route reads/commands through Fida and must not bypass redaction.
 3. **preToolUse hook** — a backstop that fires before the agent's *native*
-   read/write tools and forces a policy check. On **Claude Code** and **Codex**
-   it is a real **hard block**: `fida hook` denies a native read when secret
-   content is detected because the native tool cannot return a redacted view,
-   then directs the agent to `fida_read` or `fida_shell`.
+   read/write tools and forces a policy check. On **Claude Code**, **Codex**,
+   and **GitHub Copilot in VS Code** it is a real **hard block**: `fida hook`
+   denies a native read when secret content is detected because the native tool
+   cannot return a redacted view, then directs the agent to `fida_read` or
+   `fida_shell`.
 4. **OS sandbox (opt-in)** — `FIDA_SANDBOX=1` wraps `fida_shell` commands in
    Seatbelt (macOS) or bubblewrap (Linux) so even an allowed command cannot
    exfiltrate over the network or read secret stores like `~/.ssh`.
@@ -141,7 +142,7 @@ Supported agents and where Fida writes (global scope shown):
 | Kiro | best-effort | `~/.kiro/settings/mcp.json` | `~/.kiro/steering/fida.md` | soft prompt |
 | OpenCode | best-effort | `~/.config/opencode/opencode.json` | `~/.config/opencode/OPENCODE.md` | — |
 | Cursor | best-effort | `~/.cursor/mcp.json` | `.cursor/rules/fida.mdc` (project) | — |
-| GitHub Copilot | best-effort | `.vscode/mcp.json` (project, `servers`) | `.github/copilot-instructions.md` (project) | — |
+| GitHub Copilot | enforced | VS Code user-profile `mcp.json` · `.vscode/mcp.json` (project) | `~/.copilot/instructions/fida.instructions.md` · `.github/copilot-instructions.md` (project) | `~/.copilot/hooks/fida.json` · `.github/hooks/fida.json` (project, Preview) |
 | Windsurf | best-effort | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/memories/global_rules.md` | — |
 
 Files Fida shares with you (`CLAUDE.md`, `AGENTS.md`, `~/.gemini/GEMINI.md`,

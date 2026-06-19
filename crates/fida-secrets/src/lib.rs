@@ -136,9 +136,14 @@ fn builtin_catalog() -> &'static [NamedPattern] {
             ("google_api_key", r"\bAIza[0-9A-Za-z_\-]{35,}\b"),
             ("slack_token", r"\bxox[baprs]-[0-9A-Za-z-]{10,48}\b"),
             ("stripe_secret_key", r"\b(?:sk|rk)_live_[0-9A-Za-z]{24,}\b"),
-            // OpenAI: `sk-` or `sk-proj-` then alphanumerics (no hyphens in the
-            // tail keeps it from matching hyphenated slugs).
-            ("openai_api_key", r"\bsk-(?:proj-)?[A-Za-z0-9]{20,}\b"),
+            // OpenAI: legacy `sk-` keys are alphanumeric; project keys use a
+            // base64url-like tail, so `_` and `-` must be accepted after the
+            // distinctive `sk-proj-` prefix. The final alphanumeric keeps the
+            // trailing word boundary meaningful.
+            (
+                "openai_api_key",
+                r"\bsk-(?:[A-Za-z0-9]{20,}|proj-[A-Za-z0-9_-]{19,}[A-Za-z0-9])\b",
+            ),
             // Anthropic: the `sk-ant-` prefix is distinctive enough to allow
             // hyphens in the tail without false positives.
             ("anthropic_api_key", r"\bsk-ant-[A-Za-z0-9-]{20,}\b"),
@@ -478,6 +483,31 @@ mod tests {
         // The full scan() (env heuristic on) still flags the .env-style line,
         // proving scan_code's narrowing is what suppresses it.
         assert!(!s.scan("version = \"1.2.3\"").is_empty());
+    }
+
+    #[test]
+    fn scan_code_redacts_openai_project_key_with_base64url_tail() {
+        let s = scanner_with(vec![]);
+        let secret = [
+            "sk",
+            "-proj-",
+            "0123456789abcdefghijklmnopqrstuv",
+            "_",
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcd",
+            "-",
+            "efghijklmnopqrstuvwxyz012345",
+        ]
+        .concat();
+        let src = format!(r#"export const firstName = "{secret}";"#);
+
+        let findings = s.scan_code(&src);
+        assert!(
+            findings.iter().any(|f| f.pattern_id == "openai_api_key"),
+            "OpenAI project key should be detected in source"
+        );
+        let redacted = s.redact(&src).unwrap();
+        assert!(!redacted.contains(&secret));
+        assert!(redacted.contains(REDACTION_MARKER));
     }
 
     #[test]
