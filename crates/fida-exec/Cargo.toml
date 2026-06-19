@@ -1,0 +1,14 @@
+[package]
+name = "fida-exec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida Command_Executor: spawn, env, cwd, timeout, streaming"
+
+[dependencies]
+fida-action.workspace = true
+fida-policy.workspace = true
+fida-secrets.workspace = true
+fida-audit.workspace = true

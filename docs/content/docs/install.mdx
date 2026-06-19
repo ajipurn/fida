@@ -1,0 +1,64 @@
+---
+title: Install
+description: Install Fida from the install script, Cargo, or a local checkout.
+---
+
+## Install Fida
+
+Pick the install method that fits your setup.
+
+### Install script
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ajipurn/fida/main/install.sh | sh
+```
+
+The script installs `fida` to `~/.local/bin` by default. On a fresh install it hands off to `fida init`, so supported agents can be wired, verified, and scanned in the same step.
+
+### Pin version or directory
+
+```bash
+FIDA_VERSION=v0.1.0 FIDA_INSTALL_DIR=/usr/local/bin \
+  curl -fsSL https://raw.githubusercontent.com/ajipurn/fida/main/install.sh | sh
+```
+
+### Install with Cargo
+
+```bash
+cargo install --git https://github.com/ajipurn/fida fida-cli
+```
+
+### Install from checkout
+
+```bash
+git clone https://github.com/ajipurn/fida
+cd fida
+./install.sh
+```
+
+## Verify and remove
+
+Confirm the install, then clean up when you no longer need the integrations.
+
+### Verify
+
+```bash
+fida --version
+fida doctor
+```
+
+`fida doctor` runs the same secret-protection verification used by onboarding, checks configured agents, and reports each detected agent as `enforced`, `best_effort`, `incomplete`, or `inactive`. It surfaces best-effort coverage as warnings and incomplete protection as a setup failure.
+
+### Uninstall integrations
+
+```bash
+fida uninstall
+```
+
+This removes Fida-managed agent integrations and setup metadata while preserving non-Fida config. It prints the binary path to delete manually because Fida does not remove its own running executable.
+
+Project-scoped uninstall:
+
+```bash
+fida uninstall --project
+```

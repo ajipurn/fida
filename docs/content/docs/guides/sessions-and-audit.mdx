@@ -1,0 +1,67 @@
+---
+title: Sessions and Audit
+description: Record agent runs, inspect diffs, export reports, and understand local state.
+---
+
+Sessions are an advanced workflow for making agent work reviewable. A session captures metadata, redaction-safe audit events, command outcomes, and file diffs.
+
+## Run a session
+
+```bash
+fida run --workspace copy --apply ask -- codex
+```
+
+Common options:
+
+| Option              | Values                            | Meaning                                |
+| ------------------- | --------------------------------- | -------------------------------------- |
+| `--mode`            | `enforce`, `observe`, `dry-run`   | How decisions affect dispatch.         |
+| `--workspace`       | `copy`, `current`, `git-worktree` | Where the agent works.                 |
+| `--apply`           | `ask`, `never`, `auto-if-allowed` | How resulting diffs are applied.       |
+| `--profile`         | Profile name                      | Policy profile to load.                |
+| `--non-interactive` | Flag                              | Fail closed when approval is required. |
+
+### Workspace modes
+
+| Mode           | Use when                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| `copy`         | You want isolation without requiring git worktree support.                               |
+| `current`      | You want the agent to edit the current checkout directly. Requires a clean working tree. |
+| `git-worktree` | You want a separate git worktree for the session.                                        |
+
+### Apply modes
+
+| Mode              | Behavior                                          |
+| ----------------- | ------------------------------------------------- |
+| `ask`             | Prompt for non-allowed paths when interactive.    |
+| `never`           | Do not apply session changes automatically.       |
+| `auto-if-allowed` | Apply paths that policy allows and skip the rest. |
+
+## Review a session
+
+After a run, inspect the diffs and tail the audit log to see what happened.
+
+### Inspect sessions
+
+```bash
+fida session list
+fida session show latest
+fida session diff latest
+fida session export latest --format markdown
+```
+
+### Audit events
+
+Tail recent events:
+
+```bash
+fida audit tail
+```
+
+Fida records one event per resolved action. Events include the action kind, decision, reason, matched rule, result, and redaction status where relevant. Raw detected secret values must not be written to audit output; model names and optional metrics are scanned on write, and any field that would carry a secret is dropped. Old logs written before metrics existed still read fine, and a single corrupt line is skipped rather than failing the whole read.
+
+## Local state
+
+Fida stores repository-local runtime state under `.fida/`. Keep it out of git.
+
+Typical contents include session metadata, event JSONL, diffs, reports, and integration setup metadata.

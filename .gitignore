@@ -1,0 +1,12 @@
+/target
+.fida/
+docs/.next/
+docs/.source/
+docs/node_modules/
+docs/out/
+docs/tsconfig.tsbuildinfo
+**/*.rs.bk
+Cargo.lock.orig
+.DS_Store
+.env
+/release.sh

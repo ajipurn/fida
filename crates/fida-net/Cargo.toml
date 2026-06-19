@@ -1,0 +1,20 @@
+[package]
+name = "fida-net"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida Network_Proxy: local HTTP(S) proxy and gating"
+
+[dependencies]
+fida-action.workspace = true
+fida-policy.workspace = true
+fida-audit.workspace = true
+fida-broker.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tempfile.workspace = true

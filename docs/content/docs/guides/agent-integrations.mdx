@@ -1,0 +1,67 @@
+---
+title: Agent Integrations
+description: Wire Fida into Codex, Claude Code, Cursor, OpenCode, Copilot, Windsurf, and MCP clients.
+---
+
+Run one command to wire supported agents, verify redaction, and scan the repository:
+
+```bash
+fida init
+```
+
+Fida detects agents by home-directory config, project marker files, CLI binaries on `PATH`, and macOS application bundles. Setup records the artifacts it actually installed, so later status checks can tell whether protection is still intact.
+
+## Set up agents
+
+Wire agents globally or per project, then see exactly what each integration touches.
+
+### Scriptable setup
+
+```bash
+fida init --yes
+fida init --agents opencode,cursor
+fida init --all
+fida init --project
+```
+
+Global setup is the default. Project setup writes project-scoped config where the target agent supports it.
+
+### Integration surfaces
+
+| Agent          | Gateway MCP                           | Skill or rules                                         | Hook                                         |
+| -------------- | ------------------------------------- | ------------------------------------------------------ | -------------------------------------------- |
+| Codex          | `config.toml`                         | `~/.codex/AGENTS.md`                                   | `~/.codex/hooks.json` hard block.            |
+| Claude Code    | `~/.claude.json`                      | `~/.claude/CLAUDE.md`                                  | `~/.claude/settings.json` hard block.        |
+| Antigravity    | `~/.gemini/config/mcp_config.json`    | `AGENTS.md` (project) · `~/.gemini/GEMINI.md` (global) | None.                                        |
+| OpenCode       | `~/.config/opencode/opencode.json`    | `~/.config/opencode/OPENCODE.md`                       | None.                                        |
+| Cursor         | `~/.cursor/mcp.json`                  | `.cursor/rules/fida.mdc` project file                  | None.                                        |
+| GitHub Copilot | `.vscode/mcp.json` project file       | `.github/copilot-instructions.md` project file         | None.                                        |
+| Windsurf       | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/memories/global_rules.md`         | None.                                        |
+
+### Protection levels
+
+The three layers are not equally strong on every agent, and Fida is explicit about it. `fida init`, `fida status`, and `fida doctor` use the same protection model:
+
+| Level         | Meaning                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `enforced`    | A hard-block hook is installed and Fida's synthetic-secret self-test passed.            |
+| `best_effort` | Gateway and steering are installed, but the agent has no hard-block hook.               |
+| `incomplete`  | Required artifacts are missing or verification failed.                                  |
+| `inactive`    | The agent is detected but has no active Fida integration.                               |
+
+Codex and Claude Code can be `enforced` because they support a pre-tool hook that hard-blocks native reads containing detected secrets. Cursor, OpenCode, GitHub Copilot, Windsurf, and Antigravity are normally `best_effort`: the gateway tools and assertive steering apply, but there is no hard hook to force every native read through Fida.
+
+Run `fida status` for the day-to-day report and `fida doctor` when diagnosing gaps. For best-effort agents, add OS-level controls when you need containment that does not depend on the agent following steering. See the [security model](/docs/concepts/security-model) for how the layers stack.
+
+### Managed blocks
+
+Files shared with you, such as `CLAUDE.md`, `AGENTS.md`, `~/.gemini/GEMINI.md`, and Windsurf global rules, are edited through managed blocks. Your own content is preserved during init and uninstall.
+
+## Remove integrations
+
+```bash
+fida uninstall
+fida uninstall --project
+```
+
+Uninstall removes Fida-managed blocks and setup metadata. It does not delete unrelated agent configuration.

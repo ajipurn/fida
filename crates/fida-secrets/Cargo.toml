@@ -1,0 +1,16 @@
+[package]
+name = "fida-secrets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida Secret_Scanner: detection and redaction guarantees"
+
+[dependencies]
+fida-action.workspace = true
+fida-policy.workspace = true
+regex.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

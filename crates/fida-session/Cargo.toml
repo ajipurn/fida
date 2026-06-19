@@ -1,0 +1,21 @@
+[package]
+name = "fida-session"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida Session_Manager: ids, directories, metadata, lifecycle"
+
+[dependencies]
+fida-action.workspace = true
+fida-policy.workspace = true
+fida-audit.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true

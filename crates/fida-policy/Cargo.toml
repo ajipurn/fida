@@ -1,0 +1,21 @@
+[package]
+name = "fida-policy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida Policy_Loader and Policy_Evaluator: pure, no I/O in the eval path"
+
+[dependencies]
+fida-action.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+regex = { workspace = true }
+globset = { workspace = true }
+ipnetwork = { workspace = true }
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile = { workspace = true }

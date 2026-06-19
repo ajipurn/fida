@@ -1,0 +1,71 @@
+---
+title: Actions and Policy
+description: How Fida turns agent behavior into decisions.
+---
+
+Fida's default secret-protection path works without a policy file. Policy becomes useful when you want custom allow/ask/deny behavior around commands, files, network access, MCP tools, or session diffs.
+
+Under the hood, Fida mediates behavior by converting it into typed actions and evaluating those actions against a compiled policy. Model-bound redaction remains always on: policy can block more, but it cannot allow raw detected secret values to reach an agent response.
+
+## The model
+
+Every agent behavior becomes a typed action that resolves to a single decision, in a fixed order.
+
+### Action kinds
+
+| Action            | Meaning                                                 |
+| ----------------- | ------------------------------------------------------- |
+| `command.run`     | A process launch with arguments and working directory.  |
+| `file.read`       | A file read request.                                    |
+| `file.write`      | A file write or applied diff path.                      |
+| `network.connect` | A network target, such as a host, domain, or CIDR.      |
+| `mcp.tool_call`   | An MCP tool invocation before it reaches a server.      |
+| `secret.detected` | A scanner finding that should block or redact exposure. |
+
+### Decisions
+
+| Decision  | Effect                                                     |
+| --------- | ---------------------------------------------------------- |
+| `allow`   | Dispatch the action.                                       |
+| `ask`     | Prompt when interactive; fail closed when non-interactive. |
+| `deny`    | Block without dispatch.                                    |
+| `dry-run` | Record what would happen without executing.                |
+
+### Evaluation order
+
+The evaluator is deterministic and stops at the first matching stage:
+
+1. Built-in hard denies.
+2. Secret detection.
+3. Explicit deny rules.
+4. Explicit allow rules.
+5. Explicit ask rules.
+6. Profile default decision.
+7. Global default decision.
+
+This order makes dangerous built-ins and explicit secret findings dominate ordinary allow rules. For content-producing operations, the gateway or executor first obtains captured content, then runs the built-in detector catalog plus any `secrets.patterns` before returning output. A mediated tool redacts the match; a native-tool hook blocks when it cannot safely transform the output. See the [security model](/docs/concepts/security-model) for the detector catalog and the layers around it.
+
+## Configuration
+
+Modes change how decisions affect dispatch, and source resolution decides which policy loads.
+
+### Modes
+
+Fida supports session modes:
+
+| Mode      | Behavior                                        |
+| --------- | ----------------------------------------------- |
+| `enforce` | Apply policy decisions normally.                |
+| `observe` | Record decisions but permit actions.            |
+| `dry-run` | Evaluate and audit without dispatching actions. |
+
+### Policy source resolution
+
+Policy source order:
+
+1. Explicit `--config <path>`.
+2. Repository `.fida/policy.yaml`.
+3. Repository `fida.yaml`.
+4. Built-in default policy.
+
+Use explicit config for tests, CI experiments, or one-off runs.

@@ -1,0 +1,108 @@
+---
+title: Security Model
+description: What Fida protects, what it cannot promise, and where sandboxing fits.
+---
+
+Fida is a local-first secret leak prevention layer for AI coding workflows. Its default posture preserves useful file access while removing detected secret values before content reaches a model. Policy, approval, session isolation, and network controls still exist, but they are advanced layers around that core promise.
+
+## How Fida protects you
+
+Several layers stack to keep raw secret values out of model context.
+
+### Protected path
+
+The strongest path combines:
+
+- Gateway MCP tools for reads and shell commands.
+- Agent steering rules that require Fida tools.
+- PreToolUse hooks for clients that support hard blocking.
+- Model-bound redaction for file reads, shell output, audit-safe metadata, and reports.
+- Policy evaluation for teams that want stricter allow/ask/deny behavior.
+
+### Default redaction posture
+
+With no policy file, reads inside the workspace are allowed through the mediated gateway and scanned before the response is returned. This means an agent can inspect the structure of `.env`, `.env.*`, `*.pem`, `*.key`, and SSH key files without receiving detected values.
+
+Model-bound redaction is not optional. A policy can block more aggressively, but it cannot make Fida return raw detected secret values to an agent response. The legacy `secrets.redact` field remains for compatibility only.
+
+Fida still includes hard denies for clearly dangerous cases:
+
+- Writes and deletes targeting sensitive env or key paths.
+- Destructive command patterns.
+- Cloud metadata IPs.
+- Private network ranges.
+
+For teams that require path lockdown, `fida init --policy --preset strict-firewall` restores explicit read denies for sensitive file names.
+
+### Built-in secret detectors
+
+Detection and redaction share one engine, so gateway reads, gateway shell output, `fida exec` output, scans, and audit-safe metadata benefit from the same patterns. With zero configuration it recognizes:
+
+- `.env` `KEY=value` assignments (the value side only).
+- PEM private-key blocks.
+- A built-in catalog of high-precision provider key formats: AWS access key ids, GitHub tokens, Google API keys, Slack tokens, Stripe secret keys, OpenAI and Anthropic keys, and JWTs.
+
+The catalog favors precision over recall — each pattern is anchored to its provider's known shape — and policy `secrets.patterns` add to it. Redaction fails closed: if Fida cannot prove a value was fully removed, it suppresses the whole item rather than risk a partial leak.
+
+### Protection levels
+
+The third layer (the preToolUse hook) is only as strong as each agent allows, and Fida states that honestly. `fida init`, `fida status`, and `fida doctor` report the protection level for every detected agent, derived directly from installed artifacts and the self-test result:
+
+| Level         | Meaning                                                                        | Typical agents                                |
+| ------------- | ------------------------------------------------------------------------------ | --------------------------------------------- |
+| `enforced`    | A hard-block hook is installed and the synthetic-secret self-test passed.      | Claude Code, Codex                            |
+| `best_effort` | Gateway and steering are installed, but the agent has no hard-block hook.      | Cursor, GitHub Copilot, Windsurf, Antigravity, OpenCode |
+| `incomplete`  | Required artifacts are missing or verification failed.                         | Any agent with a broken setup                 |
+| `inactive`    | The agent is detected but has no active Fida integration.                       | Any unconfigured detected agent               |
+
+For a `best_effort` agent, pair Fida with OS-level controls when you need a containment guarantee that does not depend on the agent following the steering rule.
+
+### PathJail
+
+The MCP gateway confines file paths to the workspace root by default. It resolves symlinks and parent traversal before policy checks, so paths like `../../secrets/.env`, `/etc/passwd`, and `~/.ssh/id_rsa` are rejected before ordinary policy evaluation.
+
+PathJail can be relaxed for containers or external mounts:
+
+```bash
+FIDA_NO_JAIL=1 fida mcp serve
+```
+
+Use this only when the environment already provides equivalent isolation.
+
+### Optional OS sandbox
+
+Policy and PathJail decide _whether_ a command runs. The OS sandbox is the layer beneath that: it constrains what an **allowed** `fida_shell` command can do at the operating-system level, so even a command policy permitted cannot quietly exfiltrate data over the network or read credential stores. Reads (`fida_read`) already go through PathJail and redaction, so the sandbox targets the one surface that actually spawns a process.
+
+It is opt-in — set `FIDA_SANDBOX=1` when serving the gateway:
+
+```bash
+FIDA_SANDBOX=1 fida mcp serve
+```
+
+What each backend enforces:
+
+| Platform | Backend                   | Outbound network | Secret-store reads                                                                                          |
+| -------- | ------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| macOS    | Seatbelt (`sandbox-exec`) | Denied           | `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `~/.kube`, `~/.docker`, `~/.netrc`, and `.env` files denied |
+| Linux    | bubblewrap (`bwrap`)      | Isolated         | Not confined yet — see below                                                                                |
+| Other    | none                      | —                | —                                                                                                           |
+
+The macOS profile is **allow-default**: ordinary build and test commands keep working while network egress and the common secret stores are blocked — the balanced profile, not a lockdown. On Linux, bubblewrap isolates the network with `--unshare-net` but does not yet confine filesystem reads; the upgrade path is the Landlock LSM (kernel ≥ 5.13). Where no backend exists, the flag is a safe no-op.
+
+`fida doctor` reports whether a sandbox backend is available and whether `FIDA_SANDBOX` is set, so your real isolation level is one command away. Sandboxing stays off by default: even with a permissive profile, a command that genuinely needs the network would break, so you enable it deliberately.
+
+### Red-team self-check
+
+The claims above are not aspirational. `fida init` and `fida doctor` run a synthetic-secret verification, and Fida's test suite exercises the **built-in secret-safe posture**:
+
+- PathJail escapes: absolute paths outside the workspace, `..` traversal, deep traversal to system files, and symlinks pointing outside the root.
+- Redacted safe views: `.env`, `.env.*`, `*.pem`, and `*.key` files inside the workspace remain readable or safely blocked, but planted secret values never appear in the response.
+- Content redaction: a secret embedded in an ordinary source or notes file is stripped before it is returned.
+
+The checks are the honest counterpart to the non-goals below: a fixed battery of attacks Fida proves it stops, not a promise that no attack exists.
+
+## Non-goals
+
+Fida does not claim to be a perfect kernel-level sandbox. An agent that ignores the gateway, ignores steering, bypasses hooks, and accesses files through an unmediated native tool still needs OS-level controls.
+
+Use Fida as a strong secret-leak prevention guardrail. Add OS sandboxing when you need stronger containment.

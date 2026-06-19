@@ -1,0 +1,23 @@
+# Netlify deploy config for the Fida docs site.
+# The site is a Next.js 16 + fumadocs app living in the docs/ subdirectory.
+# It is NOT a static export — the /api/search route is server-rendered — so it
+# runs on Netlify's Next.js runtime (auto-installed when Next.js is detected).
+# Netlify uses bun automatically because docs/bun.lock is present.
+[build]
+  # Build runs inside docs/; publish + ignore paths below are relative to it.
+  base = "docs"
+  command = "bun run build"
+  publish = ".next"
+  # ponytail: skip the deploy when a commit didn't touch docs/ so Rust-only
+  # commits don't trigger a docs rebuild. Fail-open — on the first build (or a
+  # missing cache ref) the git diff exits non-zero, so the build still runs.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF ."
+
+[build.environment]
+  # Next.js 16 requires Node 20.9+; pin to current LTS for reproducible builds.
+  NODE_VERSION = "20"
+
+# Next.js runtime: turns .next output into static assets + Netlify Functions
+# (needed for the server-rendered /api/search route).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

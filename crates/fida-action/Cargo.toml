@@ -1,0 +1,14 @@
+[package]
+name = "fida-action"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida shared domain types: normalized Action model and Decision result types"
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

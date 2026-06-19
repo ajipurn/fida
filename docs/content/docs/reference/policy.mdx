@@ -1,0 +1,170 @@
+---
+title: Policy Reference
+description: Advanced policy shape for commands, files, network, MCP tools, and secret redaction compatibility.
+---
+
+Fida does not require a policy file for the MVP secret-protection path. The built-in `secret-safe` posture already returns redacted safe views. Create a policy when you need custom allow/ask/deny behavior:
+
+```bash
+fida init --policy
+```
+
+Pick a preset:
+
+```bash
+fida init --policy --preset secret-safe
+fida init --policy --preset careful
+fida init --policy --preset strict-firewall
+fida policy list-presets
+```
+
+## Always-on protections
+
+Whatever you write — even with no policy file at all — these never turn off:
+
+- **Hard denies** for writes/deletes to `.env`, `.env.*`, `*.pem`, `*.key`, and SSH key paths, plus destructive commands, the cloud metadata IP, and private network ranges.
+- **Secret redaction** using a built-in detector catalog (AWS, GitHub, Google, Slack, Stripe, OpenAI, Anthropic, JWT, plus `.env` values and PEM blocks), applied before mediated read or command output is returned.
+
+The `secret-safe` default allows reads so Fida can return a redacted safe view. Use explicit `files.read.deny` rules or the `strict-firewall` preset when even a redacted view must be unavailable. Hard denies cannot be weakened unless you explicitly set `hard_denies_disabled: true`.
+
+`secrets.redact` is a deprecated compatibility field. Model-bound redaction stays on even if old config sets that flag to `false`; policy can only make secret handling stricter, not return raw detected values to the model.
+
+## Example
+
+```yaml
+version: 1
+default_decision: ask
+
+commands:
+  allow:
+    - exact: git status
+    - exact: git diff
+    - prefix: pnpm test
+  ask:
+    - prefix: pnpm install
+      reason: package manager installs can run lifecycle scripts
+  deny:
+    - regex: "rm\\s+-rf\\s+(/|~|\\.)"
+      reason: destructive remove command
+
+files:
+  read:
+    allow:
+      - "**/*"
+  write:
+    allow:
+      - src/**
+      - tests/**
+      - docs/**
+    ask:
+      - package.json
+      - pnpm-lock.yaml
+      - .github/**
+    deny:
+      - .env
+      - "**/*.pem"
+
+network:
+  ask:
+    - domain: "*"
+      reason: arbitrary network access can transmit code or local data
+  deny:
+    - host: 169.254.169.254
+      reason: cloud metadata service
+
+mcp:
+  tools:
+    allow:
+      - pattern: git.status
+    ask:
+      - pattern: browser.navigate
+    deny:
+      - pattern: secrets.read
+```
+
+## Rule types
+
+Each section matches one kind of action: commands, files, network, and MCP tools, plus the fallback default.
+
+### Command matchers
+
+Use exact, prefix, or regex matchers.
+
+```yaml
+commands:
+  allow:
+    - exact: git status
+    - prefix: cargo test
+  deny:
+    - regex: "rm\\s+-rf"
+```
+
+### File rules
+
+File rules use glob patterns.
+
+```yaml
+files:
+  read:
+    allow:
+      - "**/*"
+    deny:
+      - .env
+      - "**/*.key"
+  write:
+    allow:
+      - src/**
+      - tests/**
+```
+
+### Network rules
+
+Network rules can match domains, hosts, and CIDRs.
+
+```yaml
+network:
+  allow:
+    - domain: registry.npmjs.org
+  ask:
+    - domain: "*"
+  deny:
+    - host: 169.254.169.254
+    - cidr: 10.0.0.0/8
+```
+
+### MCP rules
+
+MCP rules match tool names before calls reach a server.
+
+```yaml
+mcp:
+  tools:
+    allow:
+      - pattern: filesystem.read
+    ask:
+      - pattern: browser.navigate
+    deny:
+      - pattern: secrets.read
+```
+
+### Defaults
+
+Use `default_decision` to choose the fallback when no rule matches.
+
+```yaml
+default_decision: ask
+```
+
+Use profiles when different contexts need different defaults or rule overlays.
+
+## Suggesting a policy from activity
+
+Instead of authoring rules by hand, record what an agent actually does and let Fida propose an allowlist:
+
+```bash
+fida observe -- codex       # record observed actions to .fida/observations.yaml
+fida policy suggest         # show a line-by-line diff vs. the current policy
+fida policy suggest --write # apply the suggested policy after reviewing
+```
+
+The suggested policy's allow rules correspond exactly to recorded observations. It keeps model-bound redaction on, denies writes to sensitive-file entries, and asks before network access, package installation, and `git push`, regardless of what was observed. With no observations, `fida policy suggest` reports that none are available and leaves the current policy unchanged.

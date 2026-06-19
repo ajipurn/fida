@@ -1,0 +1,10 @@
+{
+  "title": "Guides",
+  "defaultOpen": true,
+  "pages": [
+    "agent-integrations",
+    "mcp-gateway",
+    "secret-scan",
+    "sessions-and-audit"
+  ]
+}

@@ -1,0 +1,134 @@
+version: 1
+default_decision: ask
+
+profiles:
+  careful:
+    default_decision: ask
+  observe:
+    mode: observe
+    default_decision: allow
+  ci-readonly:
+    default_decision: deny
+
+commands:
+  allow:
+    - exact: git status
+    - exact: git diff
+    - prefix: git log
+    - exact: git ls-files
+    - prefix: rg --files
+    - prefix: cargo build
+    - prefix: cargo check
+    - prefix: cargo metadata
+    - prefix: pnpm test
+    - prefix: python -m pytest
+    - prefix: cargo
+    - prefix: go
+    - prefix: bun
+
+  ask:
+    - prefix: pnpm install
+      reason: package manager installs can run lifecycle scripts
+    - prefix: npm
+      reason: npm commands can install untrusted packages from untrusted sources
+    - prefix: git commit
+      reason: creates repository history
+    - prefix: git push
+      reason: sends local changes to a remote
+
+  deny:
+    - regex: "rm\\s+-rf\\s+(/|~|\\.)"
+      reason: destructive remove command
+    - regex: "curl\\s+.*\\|\\s*(sh|bash|zsh)"
+      reason: piping remote scripts into a shell is unsafe by default
+    - regex: "wget\\s+.*\\|\\s*(sh|bash|zsh)"
+      reason: piping remote scripts into a shell is unsafe by default
+files:
+  read:
+    allow:
+      - "**/*"
+
+  write:
+    allow:
+      - src/**
+      - tests/**
+      - docs/**
+      - README.md
+
+    ask:
+      - package.json
+      - package-lock.json
+      - pnpm-lock.yaml
+      - yarn.lock
+      - Cargo.toml
+      - Cargo.lock
+      - pyproject.toml
+      - uv.lock
+      - go.mod
+      - go.sum
+      - .github/**
+      - Dockerfile
+      - docker-compose.yml
+      - infra/**
+
+    deny:
+      - .env
+      - .env.*
+      - "**/*.pem"
+      - "**/*.key"
+
+network:
+  allow:
+    - domain: github.com
+    - domain: api.github.com
+    - domain: registry.npmjs.org
+    - domain: pypi.org
+    - domain: crates.io
+    - domain: proxy.golang.org
+
+  ask:
+    - domain: "*"
+      reason: arbitrary network access can transmit code or local data
+
+  deny:
+    - host: 169.254.169.254
+      reason: cloud metadata service
+    - cidr: 10.0.0.0/8
+      reason: private network range
+    - cidr: 172.16.0.0/12
+      reason: private network range
+    - cidr: 192.168.0.0/16
+      reason: private network range
+
+secrets:
+  redact: true
+  block_in_diffs: true
+  patterns:
+    - name: private_key
+      regex: "-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    - name: generic_api_key
+      regex: "(?i)(api[_-]?key|token|secret)\\s*=\\s*['\\\"]?[A-Za-z0-9_\\-]{24,}"
+
+mcp:
+  tools:
+    allow:
+      - pattern: "docs.*"
+      - pattern: "search.read"
+
+    ask:
+      - pattern: "browser.*"
+        reason: browser tools can transmit data to websites
+      - pattern: "filesystem.write"
+        reason: file writes need path-level review
+
+    deny:
+      - pattern: "shell.*"
+        reason: shell tools must go through fida exec
+      - pattern: "secrets.*"
+        reason: direct secret access is blocked
+
+audit:
+  path: .fida/sessions
+  format: jsonl
+  redact_stdout: true
+  redact_stderr: true

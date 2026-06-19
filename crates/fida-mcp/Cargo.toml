@@ -1,0 +1,21 @@
+[package]
+name = "fida-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida MCP_Proxy: stdio JSON-RPC interception of tools/call"
+
+[dependencies]
+fida-action.workspace = true
+fida-policy.workspace = true
+fida-audit.workspace = true
+fida-broker.workspace = true
+fida-secrets.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

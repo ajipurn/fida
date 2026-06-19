@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-15-intel
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' Cargo.toml | head -n1)"
+          if [[ "$tag_version" != "$package_version" ]]; then
+            echo "tag $GITHUB_REF_NAME does not match workspace version $package_version" >&2
+            exit 1
+          fi
+
+      - name: Build release binary
+        run: cargo build --locked --release --package fida-cli --bin fida --target ${{ matrix.target }}
+
+      - name: Package release asset
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          asset="fida-${TARGET}.tar.gz"
+          mkdir -p dist
+          tar -C "target/${TARGET}/release" -czf "dist/${asset}" fida
+
+          if command -v sha256sum >/dev/null 2>&1; then
+            (
+              cd dist
+              sha256sum "$asset" >"$asset.sha256"
+            )
+          else
+            (
+              cd dist
+              shasum -a 256 "$asset" >"$asset.sha256"
+            )
+          fi
+
+      - name: Upload packaged asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            dist/fida-${{ matrix.target }}.tar.gz
+            dist/fida-${{ matrix.target }}.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    name: publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify installer asset contract
+        shell: bash
+        run: |
+          for target in \
+            x86_64-unknown-linux-gnu \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin
+          do
+            test -s "dist/fida-${target}.tar.gz"
+            test -s "dist/fida-${target}.tar.gz.sha256"
+          done
+
+          test "$(find dist -maxdepth 1 -type f | wc -l | tr -d ' ')" = "6"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --repo "${{ github.repository }}" \
+            --verify-tag \
+            --generate-notes \
+            --fail-on-no-commits

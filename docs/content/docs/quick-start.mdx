@@ -1,0 +1,100 @@
+---
+title: Quick Start
+description: Install Fida, verify secret redaction, scan risk, and inspect protection coverage.
+---
+
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ajipurn/fida/main/install.sh | sh
+```
+
+Verify the binary:
+
+```bash
+fida --version
+```
+
+## Install protection
+
+`fida init` is the happy path. It wires supported agents, runs a synthetic-secret self-test, records the protection level for each agent, and scans the repository.
+
+```bash
+fida init
+```
+
+Scriptable setup is available too:
+
+```bash
+fida init --yes
+fida init --agents codex,claude
+fida init --all
+fida init --project
+```
+
+The command exits non-zero only when installation or verification fails. Repository scan findings are reported as risk, but they do not make onboarding fail.
+
+## Check protection status
+
+```bash
+fida status
+fida doctor
+```
+
+Fida reports each detected agent with one of four protection levels:
+
+| Level         | Meaning                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `enforced`    | A hard-block hook is installed and the self-test passed.                                |
+| `best_effort` | Gateway and steering are installed, but the agent has no hard-block hook.               |
+| `incomplete`  | Required artifacts are missing or verification failed.                                  |
+| `inactive`    | The agent is detected but has no active Fida integration.                               |
+
+The headline promise is the same in every mode: **secret values are redacted before reaching the model**. Best-effort integrations are still useful, but Fida labels them honestly because they depend on the agent using the gateway/steering path.
+
+## Scan the repository
+
+```bash
+fida scan
+fida scan --json
+fida scan --fail-on high
+```
+
+The scan reports `high`, `medium`, or `low` risk and never prints a secret value, its length, or any fragment of it. It also reports whether a raw secret could still reach a detected agent through `raw_secret_exposure`.
+
+## Advanced policy
+
+You do not need a policy file to get redacted safe views. The built-in `secret-safe` default allows useful reads through `fida_read` and `fida_shell`, then redacts model-bound output.
+
+Create a repository policy only when you need custom allow/ask/deny rules:
+
+```bash
+fida init --policy
+fida policy check
+```
+
+Choose strict path blocking only when your environment requires it:
+
+```bash
+fida init --policy --preset strict-firewall
+```
+
+Preview decisions before trusting a rule:
+
+```bash
+fida policy explain command "pnpm install"
+```
+
+## Review activity
+
+```bash
+fida audit tail
+```
+
+Session and policy-tuning commands are still available as advanced workflows:
+
+```bash
+fida run --workspace copy --apply auto-if-allowed -- codex
+fida observe -- codex
+fida policy suggest
+```

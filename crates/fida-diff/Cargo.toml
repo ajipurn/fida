@@ -1,0 +1,19 @@
+[package]
+name = "fida-diff"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida File_Diff_Gate: git baseline, changed-set, apply"
+
+[dependencies]
+fida-action.workspace = true
+fida-policy.workspace = true
+fida-secrets.workspace = true
+fida-audit.workspace = true
+fida-broker.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true

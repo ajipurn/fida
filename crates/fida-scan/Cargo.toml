@@ -1,0 +1,19 @@
+[package]
+name = "fida-scan"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fida Secret Scan: repository secret-risk traversal and MCP risk scanning"
+
+[dependencies]
+fida-action.workspace = true
+fida-policy.workspace = true
+fida-secrets.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true
