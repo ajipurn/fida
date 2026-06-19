@@ -197,10 +197,12 @@ fn is_fida_exec(argv: &[String]) -> bool {
     binary == Some("fida") && argv.get(1).map(String::as_str) == Some("exec")
 }
 
-/// A token worth checking against file rules: a path separator or a leading dot
-/// (e.g. `.env`, `src/x`, `~/.ssh/id_rsa`). Bare words like `cat` are skipped.
+/// A token worth checking against file rules: a Unix or Windows path separator,
+/// or a leading dot/tilde (e.g. `.env`, `src/x`, `~/.ssh/id_rsa`,
+/// `C:\Users\dev\.ssh\id_rsa`). Bare words like `cat` are skipped.
 fn looks_like_path(t: &str) -> bool {
-    !t.is_empty() && (t.contains('/') || t.starts_with('.') || t.starts_with('~'))
+    !t.is_empty()
+        && (t.contains('/') || t.contains('\\') || t.starts_with('.') || t.starts_with('~'))
 }
 
 /// Push file action(s) for `raw`, evaluating both the workspace-relative path
@@ -264,6 +266,13 @@ mod tests {
 
     fn input(tool: &str, ti: Value) -> Value {
         serde_json::json!({ "tool_name": tool, "tool_input": ti })
+    }
+
+    #[test]
+    fn recognizes_windows_paths_in_shell_commands() {
+        assert!(looks_like_path(r"C:\Users\dev\.ssh\id_rsa"));
+        assert!(looks_like_path(r".\secrets.env"));
+        assert!(!looks_like_path("cat"));
     }
 
     #[test]
