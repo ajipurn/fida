@@ -33,6 +33,15 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # MSVC's PDB writer can hit its public-symbol limit when linking the
+      # property-test binaries. Tests still run normally without debug symbols.
+      - name: Reduce Windows debug symbols
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "CARGO_PROFILE_DEV_DEBUG=0" >> $env:GITHUB_ENV
+          "CARGO_PROFILE_TEST_DEBUG=0" >> $env:GITHUB_ENV
+
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
         with:
