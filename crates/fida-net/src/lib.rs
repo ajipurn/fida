@@ -231,9 +231,12 @@ where
         )
         .await;
 
+        // Always consume the request head before replying. On Windows, closing a
+        // TCP socket while the peer's request headers are still unread can turn
+        // the close into a reset, causing the client to miss the 403 bytes.
+        drain_headers(&mut client).await?;
+
         if verdict.forward {
-            // Drain the remaining CONNECT request headers before tunneling.
-            drain_headers(&mut client).await?;
             establish_tunnel(client, &target).await
         } else {
             deny_connect(client).await
@@ -257,14 +260,20 @@ where
         if verdict.forward {
             forward_http(client, trimmed, &target).await
         } else {
+            // For denied HTTP requests, do not forward any bytes, but do drain
+            // the remaining request headers before closing so the client sees
+            // the policy response reliably on all supported platforms.
+            drain_headers(&mut client).await?;
             deny_http(client).await
         }
     }
     // Unrecognized request line — reject as a bad request.
     else {
-        let _ = client
-            .write_all(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")
-            .await;
+        let _ = write_response_and_close(
+            &mut client,
+            b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n",
+        )
+        .await;
         Ok(())
     }
 }
@@ -315,9 +324,11 @@ async fn establish_tunnel(mut client: TcpStream, target: &RequestTarget) -> io::
     let mut upstream = match TcpStream::connect((target.host.as_str(), target.port)).await {
         Ok(s) => s,
         Err(_) => {
-            let _ = client
-                .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
-                .await;
+            let _ = write_response_and_close(
+                &mut client,
+                b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n",
+            )
+            .await;
             return Ok(());
         }
     };
@@ -338,9 +349,11 @@ async fn forward_http(
     let mut upstream = match TcpStream::connect((target.host.as_str(), target.port)).await {
         Ok(s) => s,
         Err(_) => {
-            let _ = client
-                .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
-                .await;
+            let _ = write_response_and_close(
+                &mut client,
+                b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n",
+            )
+            .await;
             return Ok(());
         }
     };
@@ -378,18 +391,28 @@ text/plain\r\n\r\n{}",
         body.len(),
         body
     );
-    let _ = client.write_all(response.as_bytes()).await;
-    Ok(())
+    write_response_and_close(&mut client, response.as_bytes()).await
 }
 
 /// Return a policy-denial connection failure for a blocked `CONNECT` tunnel.
 /// `403 Forbidden` (rather than `200`) means the tunnel is never established,
 /// so no bytes reach the destination.
 async fn deny_connect(mut client: TcpStream) -> io::Result<()> {
-    let _ = client
-        .write_all(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
-        .await;
-    Ok(())
+    write_response_and_close(
+        &mut client,
+        b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n",
+    )
+    .await
+}
+
+/// Write a terminal proxy response and close the write half gracefully.
+///
+/// Tokio's `TcpStream` is unbuffered, but explicit `flush` + `shutdown` keeps
+/// the client-facing denial path deterministic across Unix and Windows.
+async fn write_response_and_close(client: &mut TcpStream, response: &[u8]) -> io::Result<()> {
+    client.write_all(response).await?;
+    client.flush().await?;
+    client.shutdown().await
 }
 
 /// Whether `host` is a literal IP address (vs a registered name). Retained as a
