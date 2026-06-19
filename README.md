@@ -2,7 +2,15 @@
   <img src="assets/fida-logo.png" alt="Fida logo" width="220">
 </p>
 
-# Fida
+<h1 align="center">Fida</h1>
+
+<p align="center">
+  <a href="https://github.com/ajipurn/fida/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/ajipurn/fida/ci.yml?branch=main&amp;style=flat-square&amp;label=CI"></a>
+  <a href="https://github.com/ajipurn/fida/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ajipurn/fida?style=flat-square&amp;label=release"></a>
+  <a href="https://www.rust-lang.org/"><img alt="Rust 1.85+" src="https://img.shields.io/badge/rust-1.85%2B-000000?style=flat-square&amp;logo=rust"></a>
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
+  <img alt="Local-first" src="https://img.shields.io/badge/security-local--first-0b8f6a?style=flat-square">
+</p>
 
 **Prevent AI coding agents from reading or leaking your secrets.**
 
