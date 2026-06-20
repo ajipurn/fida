@@ -33,9 +33,9 @@ use std::process::{Child, Command, Stdio};
 use chrono::Utc;
 use serde_json::{Value, json};
 
+use fida_action::SessionHandle;
 use fida_action::{Action, ActionKind, ActionPayload, Actor, Decision, DecisionResult, Risk};
 use fida_audit::{AuditAction, AuditEvent, AuditResult, AuditStore};
-use fida_broker::SessionHandle;
 use fida_policy::CompiledPolicy;
 use fida_secrets::{Scanner, SecretScanner};
 
@@ -737,7 +737,7 @@ mod tests {
 
     use fida_action::MatchedRule;
     use fida_audit::AuditStore;
-    use fida_broker::testing::MemoryAuditStore;
+    use fida_audit::testing::MemoryAuditStore;
     use fida_policy::{CompiledPolicy, PolicySource, load_source};
     use std::io::Cursor;
 

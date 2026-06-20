@@ -1,47 +1,15 @@
 ---
 title: Comparisons
-description: How Fida compares to secret scanners, and where it fits alongside context/token tools like LeanCTX, RTK, and Caveman.
+description: How Fida fits beside scanners and agent tooling.
 ---
 
-Fida belongs in the same workflow as secret scanners and context/token tools, but it solves a different problem: it keeps raw secret values out of AI-agent context. Policy and audit still matter, but the MVP promise is model-bound redaction before a secret reaches the model.
+Fida keeps raw secret values out of live AI-agent context. It complements, rather than replaces, the tools around it.
 
-## Secret scanners (gitleaks, GitGuardian, trufflehog)
+| Tool type | Primary job | Where it acts |
+| --- | --- | --- |
+| Fida | Redact secrets before an agent receives content | Agent file reads and command output |
+| Secret scanners | Find credentials in source, commits, and history | CI, pre-commit, repository history |
+| OS sandbox | Constrain process capabilities | Operating-system boundary |
+| Context tools | Reduce or organize agent context | Prompt and output management |
 
-Dedicated secret scanners are pattern-and-history engines: they carry hundreds of detectors and scan commits, diffs, and history to find committed or leaked credentials. Fida is **not** trying to out-detect them, and you should keep using one.
-
-The difference is _when_ and _where_ they act:
-
-|             | Secret scanners                 | Fida                                                        |
-| ----------- | ------------------------------- | ----------------------------------------------------------- |
-| Primary job | Find secrets in code/history    | Stop raw secret values from reaching an AI model at runtime |
-| Acts at     | Commit / CI / history           | Agent setup, file reads, shell output, audit/report writing |
-| Output      | A list of findings to remediate | Redacted safe views, protection status, scan risk, audit    |
-| Coverage    | Broad detector catalog          | A precise built-in catalog, focused on live redaction       |
-
-Use both: a scanner keeps secrets out of history; Fida keeps a live agent from receiving the raw secrets you still have on disk. `fida scan` is a fast protection-aware risk check, not a replacement for a full history scan.
-
-## Where Fida fits alongside context and token tools
-
-LeanCTX, RTK, and Caveman are token- and context-economy tools: they shape how much an agent reads, how much terminal output it ingests, and how verbosely it replies. Fida sits on a different axis — it controls whether raw secret values enter that context at all — so it is not an alternative to any of them. They stack.
-
-### Summary
-
-| Tool    | Primary job                | Controls                                           |
-| ------- | -------------------------- | -------------------------------------------------- |
-| Fida    | Secret leak prevention     | Whether raw secret values can reach model context. |
-| LeanCTX | Context intelligence layer | What agents read and remember.                     |
-| RTK     | CLI output compression     | How much terminal output reaches context.          |
-| Caveman | Response style compression | How many tokens the agent spends talking.          |
-
-The other three optimize the token economy; Fida is the secret-protection layer beneath them. RTK can shrink `cargo test` output, but Fida is the layer that redacts any secret that surfaces in an allowed read or shell output. Advanced policy can also decide whether commands like `curl` or `cat .env` run at all.
-
-## Recommended stack
-
-```text
-Caveman -> terse agent responses
-RTK -> compressed terminal output
-LeanCTX -> compact context and memory
-Fida -> secret redaction, protection status, scan risk, audit
-```
-
-The products are complementary. Fida should be positioned as secret leak prevention, not as a token saver or a general firewall first.
+Use a dedicated scanner such as gitleaks, GitGuardian, or trufflehog to find and remediate secrets in history. Use Fida to stop the raw values that remain on disk from reaching an AI coding agent during day-to-day work.

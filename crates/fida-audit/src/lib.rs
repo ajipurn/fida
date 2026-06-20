@@ -7,6 +7,7 @@
 mod event;
 mod report;
 mod store;
+pub mod testing;
 
 pub use event::{AuditAction, AuditEvent, AuditMetrics, AuditResult, MAX_SAFE_INT};
 pub use report::{DefaultReportGenerator, ReportError, ReportFormat, ReportGenerator};

@@ -38,8 +38,8 @@ pub struct GlobalArgs {
     #[arg(long, global = true)]
     pub json: bool,
 
-    /// Use a specific policy file, overriding default resolution.
-    #[arg(long, value_name = "PATH", global = true)]
+    /// Compatibility option for the legacy policy engine.
+    #[arg(long, value_name = "PATH", global = true, hide = true)]
     pub config: Option<std::path::PathBuf>,
 
     /// Disable ANSI color escape sequences.
@@ -102,20 +102,8 @@ pub enum Command {
     /// Run one shell command through policy.
     #[command(hide = true)]
     Exec(commands::exec::ExecArgs),
-    /// Run an agent inside a Fida session.
-    #[command(hide = true)]
-    Run(commands::run::RunArgs),
-    /// Run an agent in observe mode and record observed actions for policy suggestion.
-    #[command(hide = true)]
-    Observe(commands::observe::ObserveArgs),
-    /// Manage sessions.
-    #[command(hide = true)]
-    Session(commands::session::SessionArgs),
     /// Read audit events.
     Audit(commands::audit::AuditArgs),
-    /// Generate a human-readable report from a session.
-    #[command(hide = true)]
-    Report(commands::report::ReportArgs),
     /// Inspect and proxy MCP servers.
     #[command(hide = true)]
     Mcp(commands::mcp::McpArgs),
@@ -136,11 +124,7 @@ pub async fn dispatch(command: Command, ctx: &GlobalContext) -> CliResult {
         Command::Guard(args) => commands::guard::run(&args, ctx).await,
         Command::Hook(args) => commands::hook::run(&args, ctx).await,
         Command::Exec(args) => commands::exec::run(&args, ctx).await,
-        Command::Run(args) => commands::run::run(&args, ctx).await,
-        Command::Observe(args) => commands::observe::run(&args, ctx).await,
-        Command::Session(args) => commands::session::run(&args, ctx).await,
         Command::Audit(args) => commands::audit::run(&args, ctx).await,
-        Command::Report(args) => commands::report::run(&args, ctx).await,
         Command::Mcp(args) => commands::mcp::run(&args, ctx).await,
         Command::Doctor(args) => commands::doctor::run(&args, ctx).await,
         Command::Scan(args) => commands::scan::run(&args, ctx).await,

@@ -20,9 +20,9 @@ use std::io::Cursor;
 
 use serde_json::{Value, json};
 
+use fida_action::SessionHandle;
+use fida_audit::testing::MemoryAuditStore;
 use fida_audit::{AuditAction, AuditResult, AuditStore};
-use fida_broker::SessionHandle;
-use fida_broker::testing::MemoryAuditStore;
 use fida_mcp::{McpPump, POLICY_DENIED_CODE, inspect_via};
 use fida_policy::{CompiledPolicy, PolicySource, load_source};
 

@@ -10,18 +10,17 @@
 //!   `Write`/`Edit` carry `file_path`; `Bash` carries `tool_input.command`.
 //! * Codex intercepts `Bash` and `apply_patch`, both via `tool_input.command`.
 //!
-//! Decision: evaluate the touched path(s) and command against the policy. If
-//! anything resolves to `deny`, or a native read would expose detected secret
-//! content without redaction, emit a deny decision and direct the agent to
-//! `fida_read`/`fida_shell`. Otherwise exit 0 and let the agent's normal
-//! permission flow continue. Only `deny` blocks — `ask`/`allow` fall through.
+//! Decision: inspect touched read paths for detected secret content. When a
+//! native tool would expose a secret without a redacted view, emit a deny
+//! decision and direct the agent to `fida_read`/`fida_shell`; otherwise leave
+//! the agent's normal command and permission flow untouched.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use clap::Args;
-use fida_action::{Action, ActionKind, ActionPayload, Actor, Decision, DecisionResult};
-use fida_policy::{CompiledPolicy, evaluate, load_source, resolve_source_in};
+use fida_action::{Action, ActionKind, ActionPayload, Actor, DecisionResult};
+use fida_policy::{CompiledPolicy, evaluate, load_secret_guard_policy};
 use fida_secrets::{Scanner, SecretScanner};
 use serde_json::Value;
 
@@ -35,7 +34,7 @@ pub struct HookArgs {
     pub agent: Option<String>,
 }
 
-pub async fn run(_args: &HookArgs, ctx: &GlobalContext) -> CliResult {
+pub async fn run(_args: &HookArgs, _ctx: &GlobalContext) -> CliResult {
     let mut raw = String::new();
     if std::io::stdin().read_to_string(&mut raw).is_err() {
         return Ok(()); // No readable input: do not block the agent.
@@ -48,7 +47,7 @@ pub async fn run(_args: &HookArgs, ctx: &GlobalContext) -> CliResult {
     };
 
     let workspace = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let policy = load_policy(ctx)?;
+    let policy = load_policy()?;
 
     if let Some(decision) = decide(&policy, &input, &workspace) {
         println!("{}", deny_json(&decision));
@@ -56,11 +55,11 @@ pub async fn run(_args: &HookArgs, ctx: &GlobalContext) -> CliResult {
     Ok(())
 }
 
-/// Resolve the policy from the hook's working directory (per-repo policy, or
-/// the built-in default whose scanner still protects secret-bearing reads).
-fn load_policy(ctx: &GlobalContext) -> Result<CompiledPolicy, CliError> {
-    let source = resolve_source_in(Path::new("."), ctx.config.as_deref())?;
-    Ok(load_source(&source, None)?)
+/// Hooks use the product's secret-only posture, never a repository's general
+/// command policy. A native tool is blocked only when it would expose secret
+/// content that cannot be returned as a redacted view.
+fn load_policy() -> Result<CompiledPolicy, CliError> {
+    Ok(load_secret_guard_policy()?)
 }
 
 /// Inspect one PreToolUse envelope and return the first `deny` decision, if any.
@@ -73,10 +72,6 @@ fn decide(policy: &CompiledPolicy, input: &Value, workspace: &Path) -> Option<De
         .is_some_and(command_is_fida_exec);
 
     for action in actions_for(tool, tool_input, workspace) {
-        let decision = evaluate(policy, &action);
-        if decision.decision == Decision::Deny {
-            return Some(decision);
-        }
         if !command_is_fida_mediated {
             if let Some(secret) = secret_read_decision(policy, &action, workspace) {
                 return Some(secret);
@@ -230,18 +225,10 @@ fn push_file_actions(actions: &mut Vec<Action>, kind: ActionKind, raw: &str, wor
 
 /// The PreToolUse deny reply understood by both Claude Code and Codex.
 fn deny_json(decision: &DecisionResult) -> String {
-    let reason = if decision.stage == fida_action::EvalStage::SecretDetection {
-        format!(
-            "Fida detected secret content that this native tool cannot redact safely. Use fida_read or fida_shell for a redacted view ({})",
-            decision.matched_rule.as_str()
-        )
-    } else {
-        format!(
-            "blocked by Fida policy: {} ({}). Use fida_read or fida_shell when a redacted safe view is appropriate",
-            decision.reason,
-            decision.matched_rule.as_str()
-        )
-    };
+    let reason = format!(
+        "Fida detected secret content that this native tool cannot redact safely. Use fida_read or fida_shell for a redacted view ({})",
+        decision.matched_rule.as_str()
+    );
     serde_json::json!({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -256,7 +243,8 @@ fn deny_json(decision: &DecisionResult) -> String {
 mod tests {
     use super::*;
     use crate::commands::presets::STRICT_FIREWALL;
-    use fida_policy::PolicySource;
+    use fida_action::Decision;
+    use fida_policy::{PolicySource, load_source};
 
     fn policy() -> CompiledPolicy {
         // Built-in default: sensitive reads are allowed through mediated tools,
@@ -386,7 +374,7 @@ mod tests {
     }
 
     #[test]
-    fn fida_exec_still_respects_strict_firewall_read_denies() {
+    fn strict_firewall_does_not_change_secret_only_hook_behavior() {
         let dir = tempfile::tempdir().unwrap();
         let config = dir.path().join("strict.yaml");
         std::fs::write(&config, STRICT_FIREWALL).unwrap();
@@ -405,10 +393,7 @@ mod tests {
             ),
             dir.path(),
         );
-        assert!(
-            d.is_some(),
-            "strict-firewall keeps explicit read denies even for fida exec"
-        );
+        assert!(d.is_none(), "mediated reads stay available for redaction");
     }
 
     #[test]

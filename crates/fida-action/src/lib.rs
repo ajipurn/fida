@@ -259,6 +259,42 @@ pub enum Mode {
     DryRun,
 }
 
+// ---------------------------------------------------------------------------
+// Session handle
+// ---------------------------------------------------------------------------
+
+/// Per-session state used to attribute and order audit events.
+///
+/// Holds the owning session id and a monotonic counter used to mint unique,
+/// append-ordered event ids (`evt_01`, `evt_02`, …) so the one-event-per-action
+/// guarantee yields stable identifiers.
+#[derive(Debug, Clone)]
+pub struct SessionHandle {
+    session_id: String,
+    event_counter: u32,
+}
+
+impl SessionHandle {
+    /// Create a handle for `session_id` with the event counter at zero.
+    pub fn new(session_id: impl Into<String>) -> Self {
+        SessionHandle {
+            session_id: session_id.into(),
+            event_counter: 0,
+        }
+    }
+
+    /// The owning session id.
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    /// Mint the next unique, append-ordered event id for this session.
+    pub fn next_event_id(&mut self) -> String {
+        self.event_counter += 1;
+        format!("evt_{:02}", self.event_counter)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

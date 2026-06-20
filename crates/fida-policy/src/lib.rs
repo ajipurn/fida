@@ -39,9 +39,9 @@ pub use schema::{
 pub use schema_json::policy_json_schema;
 
 pub use loader::{
-    BUILTIN_DEFAULT_POLICY, FsPolicyLoader, LoadError, MAX_POLICY_BYTES, PolicyLoader,
-    PolicySource, ProfileError, SchemaViolation, builtin_hard_denies, load_source,
-    resolve_source_in, validate_raw,
+    BUILTIN_DEFAULT_POLICY, BUILTIN_SECRET_GUARD_POLICY, FsPolicyLoader, LoadError,
+    MAX_POLICY_BYTES, PolicyLoader, PolicySource, ProfileError, SchemaViolation,
+    builtin_hard_denies, load_secret_guard_policy, load_source, resolve_source_in, validate_raw,
 };
 
 pub use evaluator::{PolicyEvaluator, StagedEvaluator, evaluate};

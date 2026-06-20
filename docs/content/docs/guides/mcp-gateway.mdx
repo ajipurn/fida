@@ -1,89 +1,42 @@
 ---
-title: MCP Gateway
-description: Serve Fida's redacting MCP tools and gate third-party MCP servers.
+title: Redacting Gateway
+description: Give agents a safe view of files and command output.
 ---
 
-Fida exposes gateway tools over MCP:
+Fida exposes two MCP tools for agent integrations:
 
-- `fida_read`: read files through PathJail, policy, redaction, and audit.
-- `fida_shell`: run shell commands through policy, optional sandboxing, redaction, and audit.
+- `fida_read` reads a workspace file and redacts detected values before returning it.
+- `fida_shell` captures command output and redacts detected values before returning it.
 
-The built-in default is redaction-first. A sensitive filename does not by itself block `fida_read`; Fida reads the file, replaces detected values, and returns the useful remainder. Model-bound redaction is an invariant: policy can make a read stricter by blocking it, but it cannot make raw detected secret values safe to return. Explicit policy denies and the `strict-firewall` preset can still block a read before disk access.
+The gateway is intentionally not a command-policy firewall. It does not apply an allowlist, approval prompt, or generic command deny list. Its sole job is to ensure that the content it returns to the agent is redacted.
 
-Start the gateway:
+Start it manually when testing an integration:
 
 ```bash
 fida mcp serve
-```
-
-Use a specific workspace root:
-
-```bash
 fida mcp serve --workspace /path/to/repo
 ```
 
-## Gateway tools
-
-How `fida_read` and `fida_shell` evaluate each request before anything runs.
-
-### Read flow
+## Read flow
 
 ```text
-MCP fida_read -> PathJail -> file.read policy -> read file -> redact -> audit -> response
+MCP fida_read -> workspace boundary -> read file -> redact -> audit -> response
 ```
 
-### Shell flow
+The workspace boundary resolves symlinks and `..` traversal before reading, so an integration cannot accidentally request `/etc/passwd`, `~/.ssh/id_rsa`, or a path outside its configured repository.
+
+## Shell flow
 
 ```text
-MCP fida_shell -> command.run policy -> optional OS sandbox -> execute -> redact -> audit -> response
+MCP fida_shell -> execute -> redact stdout/stderr -> audit -> response
 ```
 
-Both flows fail closed on redaction failure: raw content is suppressed instead of returned.
+The output is captured rather than streamed. If redaction cannot complete, Fida suppresses the affected output instead of returning a partial secret.
 
-## Third-party servers
+The command itself runs with the real environment. A `fida_shell "psql $DATABASE_URL"` connects with the true credential because the child process expands it normally; only the captured output handed back to the model is redacted. The agent can *use* a secret to do its job without the raw value ever entering model context.
 
-Inspect and gate MCP servers you do not control.
+## Boundary
 
-### Inspect MCP servers
+The gateway protects only calls routed through it. Fida's managed steering asks agents to use these tools, and supported native-read hooks provide a backstop when a native tool would expose detected secret content.
 
-Fida can inspect and reason about third-party MCP server tools:
-
-```bash
-fida mcp inspect server.json
-fida mcp list-tools server.json
-fida mcp explain-tool browser.navigate
-```
-
-### Proxy MCP servers
-
-Use the policy-gated stdio proxy to gate `tools/call` requests before they reach a server:
-
-```bash
-fida mcp proxy --server server.json
-```
-
-The proxy evaluates `mcp.tool_call` actions and blocks denied or unresolved ask decisions in non-interactive mode.
-
-## Controls
-
-Environment switches that adjust isolation for the gateway.
-
-### PathJail controls
-
-PathJail is enabled by default for gateway reads and shell working directories. It blocks absolute paths and symlink escapes outside the workspace.
-
-Disable only when the surrounding environment already provides isolation:
-
-```bash
-FIDA_NO_JAIL=1 fida mcp serve
-```
-
-### Sandbox controls
-
-`fida_shell` commands can be wrapped in an OS sandbox for defense in depth, so even a policy-allowed command is network-isolated and blocked from reading credential stores:
-
-```bash
-FIDA_SANDBOX=1 fida mcp serve
-```
-
-Backends: Seatbelt (`sandbox-exec`) on macOS denies outbound network and reads of `~/.ssh`, `~/.aws`, `~/.gnupg`, and similar stores; bubblewrap (`bwrap`) on Linux isolates the network. It only affects `fida_shell` (reads already pass through PathJail + redaction), is off by default, and is a no-op where no backend exists. Policy still decides whether the command runs at all. Run `fida doctor` to confirm a backend is available; see the [security model](/docs/concepts/security-model) for the full per-platform matrix.
+`fida_read` is confined to the workspace, so it will not read `~/.aws/credentials` or `~/.ssh/id_rsa` at all. Secret content in those out-of-workspace paths is caught only when an agent reaches them through a native tool guarded by a native-read hook — that is, on `enforced` agents (Codex, Claude Code). On `best_effort` agents, protection covers workspace files and content routed through the gateway, not arbitrary paths outside it. See [Agent Integrations](/docs/guides/agent-integrations) for coverage by client.

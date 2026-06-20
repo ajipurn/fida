@@ -35,12 +35,12 @@ use std::path::{Component, Path, PathBuf};
 use chrono::Utc;
 use serde_json::{Value, json};
 
+use fida_action::SessionHandle;
 use fida_action::{
     Action, ActionKind, ActionPayload, Actor, Decision, DecisionResult, EvalStage, MatchedRule,
     Risk,
 };
 use fida_audit::{AuditAction, AuditEvent, AuditResult, AuditStore};
-use fida_broker::SessionHandle;
 use fida_policy::CompiledPolicy;
 use fida_secrets::{Scanner, SecretScanner};
 
@@ -721,7 +721,7 @@ fn tool_error_result(id: &Value, text: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fida_broker::testing::MemoryAuditStore;
+    use fida_audit::testing::MemoryAuditStore;
     use fida_policy::{PolicySource, load_source};
     use std::io::Cursor;
 

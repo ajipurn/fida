@@ -1,122 +1,44 @@
 ---
 title: CLI Reference
-description: Common Fida commands and what they do.
+description: The secret-leak-prevention commands Fida exposes.
 ---
 
-## Getting started
-
-Install protection, verify status, and scan risk.
-
-### Setup
+## Setup and coverage
 
 ```bash
-fida init                         # install agent integrations, verify redaction, and scan
-fida status                       # show protection by agent and self-test result
-fida doctor                       # diagnose secret-protection setup
-fida uninstall                    # remove Fida integrations and setup metadata
+fida init                         # install integrations and verify redaction
+fida status                       # show protection for detected agents
+fida doctor                       # diagnose setup and run the self-test
+fida uninstall                    # remove Fida-managed integrations
 ```
 
-### Secret scan
+## Scan secret exposure
 
 ```bash
-fida scan                         # scan exposed secrets and raw model exposure
-fida scan --path ./service        # scan a specific directory
-fida scan --json                  # emit the scan result as one JSON document
-fida scan --fail-on high          # exit non-zero when the risk is high
-fida scan --include-ignored       # also scan ordinary git-ignored files
+fida scan                         # find secret risk and raw-model exposure
+fida scan --path ./service        # scan another directory
+fida scan --json                  # emit one JSON document
+fida scan --fail-on high          # fail CI on high risk
+fida scan --include-ignored       # include ordinary ignored files
 fida scan --exclude vendor        # prune an extra directory subtree
-fida scan --mcp                   # also flag risky agent MCP servers (alias: --agents)
 ```
 
-`fida scan` finds sensitive files (`.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa`, `id_ed25519`) even when they are git-ignored, scans their content with the secret scanner, checks git tracking, and reports whether raw values can still reach a detected agent. Output never contains a secret value, its length, or any fragment of it.
+`fida scan` never prints a secret value, its length, or a fragment. Its important output is `raw_secret_exposure`: whether a detected agent could receive an unredacted value.
 
-### Advanced policy
-
-```bash
-fida policy check
-fida policy list-presets
-fida init --policy --preset secret-safe     # scaffold the default redaction-first policy
-fida policy explain command "pnpm install"
-fida init --policy --preset strict-firewall # opt into sensitive read path blocking
-fida policy schema --json
-fida policy suggest                # propose an allowlist from recorded observations
-fida policy suggest --write        # write the suggested policy after the diff
-```
-
-## Running agents
-
-Execute single commands or full agent sessions under policy. These commands are advanced; the default onboarding path is `fida init`.
-
-### Command execution
-
-```bash
-fida exec -- git status
-fida exec --dry-run -- npm install
-```
-
-### Agent sessions
-
-```bash
-fida run -- codex
-fida run --workspace copy --apply auto-if-allowed -- codex
-fida run --mode observe -- claude
-```
-
-### Observe and suggest policy
-
-```bash
-fida observe -- codex             # run an agent and record its observed actions
-fida policy suggest               # review the suggested allowlist diff
-fida policy suggest --write       # apply it
-```
-
-`fida observe` records each observed action — categorized as file access, network access, package installation, or git operation — to `.fida/observations.yaml`. `fida policy suggest` turns those observations into an allowlist whose allow rules match what was observed, while keeping sensitive reads on the redaction path, denying sensitive writes, and asking before network access, package installs, and `git push`.
-
-## Reviewing activity
-
-Inspect sessions and audit events.
-
-### Sessions
-
-```bash
-fida session list
-fida session show latest
-fida session diff latest
-fida session export latest --format markdown
-```
-
-### Audit
+## Inspect safe activity
 
 ```bash
 fida audit tail
-fida audit list --kind file.read --decision deny
+fida audit list
 ```
 
-## MCP gateway
+Fida audit records are redaction-safe and help diagnose gateway activity and coverage. They are not an agent approval or workflow-management system.
 
-Gate MCP servers and serve local Fida tools.
-
-### MCP
+## Gateway
 
 ```bash
-fida mcp inspect server.json
-fida mcp list-tools server.json
-fida mcp explain-tool browser.navigate
-fida mcp proxy --server server.json
 fida mcp serve
+fida mcp serve --workspace /path/to/repo
 ```
 
-## Exit code shape
-
-Fida maps major outcomes to stable exit codes:
-
-| Code | Meaning                                        |
-| ---- | ---------------------------------------------- |
-| `0`  | Success, dry-run, or permitted action success. |
-| `1`  | Usage or invalid input.                        |
-| `2`  | Denied action.                                 |
-| `3`  | Approval required but unavailable.             |
-| `4`  | Policy load or validation failure.             |
-| `5`  | Agent execution failure.                       |
-| `6`  | Secret blocked.                                |
-| `7`  | Apply failure.                                 |
+The gateway serves `fida_read` and `fida_shell`: their returned file content and captured command output are redacted before an agent receives them.

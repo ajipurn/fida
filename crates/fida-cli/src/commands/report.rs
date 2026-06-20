@@ -1,58 +1,28 @@
-//! `fida report <session>` — human-readable session report.
-//! **Owner: task 19.7.**
+//! Session report rendering, shared by `fida audit export`.
 //!
 //! Resolves a session reference (`latest` or an explicit id), reads its audit
-//! events, and renders them through the [`DefaultReportGenerator`] in the
-//! requested format:
+//! events, and renders them through the [`DefaultReportGenerator`]:
 //!
 //! * an unresolved session -> an error and no report;
-//! * an unsupported `--format` -> an error and no report;
+//! * an unsupported format -> an error and no report;
 //! * a supported format (`markdown` | `json`) -> the rendered report, with every
 //!   section rendered even when empty.
-//!
-//! The shared [`build_report`] entry point is reused by `fida audit export`
-//! (task 19.7 owns both), so the two commands resolve, read, and render
-//! identically.
 
-use std::path::{Path, PathBuf};
-
-use clap::Args;
+use std::path::Path;
 
 use fida_audit::{
     AuditStore, DefaultReportGenerator, JsonlAuditStore, ReportFormat, ReportGenerator,
 };
 use fida_session::{resolve_session, sessions_root};
 
-use crate::context::GlobalContext;
 use crate::error::{CliError, CliResult};
-
-/// Arguments for `fida report`.
-#[derive(Debug, Args)]
-pub struct ReportArgs {
-    /// Session id, or `latest`.
-    #[arg(default_value = "latest")]
-    pub session: String,
-
-    /// Report format: `markdown` or `json`.
-    #[arg(long)]
-    pub format: Option<String>,
-}
-
-/// Run `fida report <session>`.
-pub async fn run(args: &ReportArgs, ctx: &GlobalContext) -> CliResult {
-    let repo = PathBuf::from(".");
-    let report = build_report(&repo, &args.session, args.format.as_deref(), ctx.json)?;
-    // The report is the command's primary output; always print it.
-    println!("{report}");
-    Ok(())
-}
 
 /// Resolve `session_ref`, read its audit events, and render a session report in
 /// the chosen format, returning the rendered document.
 ///
-/// Shared by `fida report` and `fida audit export`. The format defaults to
-/// `json` when no explicit format is supplied and `prefer_json` is set
-/// (honoring the global `--json` flag), otherwise to `markdown`.
+/// Used by `fida audit export`. The format defaults to `json` when no explicit
+/// format is supplied and `prefer_json` is set (honoring the global `--json`
+/// flag), otherwise to `markdown`.
 ///
 /// * An unresolved session maps to a generic error -> exit 1.
 /// * An unsupported format maps to a generic error -> exit 1;

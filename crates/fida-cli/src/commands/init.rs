@@ -35,7 +35,7 @@ pub struct InitArgs {
     pub install: install::InstallArgs,
 
     /// Create a starter policy file instead of wiring agent integrations.
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub policy: bool,
 
     #[command(flatten)]
@@ -46,15 +46,15 @@ pub struct InitArgs {
 pub struct PolicyInitArgs {
     /// Preset to scaffold. Defaults to `secret-safe`; policy-oriented presets
     /// remain available for advanced use.
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub preset: Option<String>,
 
     /// Output path for the generated policy file.
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub path: Option<std::path::PathBuf>,
 
     /// Overwrite an existing policy file.
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub force: bool,
 }
 

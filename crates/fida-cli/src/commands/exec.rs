@@ -1,40 +1,35 @@
-//! `fida exec -- <command>` — run one shell command through policy.
-//! **Owner: task 19.4.**
+//! `fida exec -- <command>` — run one shell command, redacting secret output.
 //!
-//! This is the one place that wires the full command-mediation path together:
+//! `fida exec` is the non-MCP fallback the managed steering points agents to
+//! when the `fida_read`/`fida_shell` gateway tools are unavailable. It:
 //!
-//! 1. Resolve and load the policy (`--config` honored), surfacing load failures
-//!    as exit 4 via the existing `From<LoadError>` impl.
-//! 2. Resolve the working directory, parse `--env KEY=value` and `--timeout`,
-//!    and validate the resulting [`fida_exec::ExecRequest`]. Bad cwd / env /
+//! 1. Resolves and loads the secret-guard policy (`--config` honored), surfacing
+//!    load failures as exit 4 via the existing `From<LoadError>` impl.
+//! 2. Resolves the working directory, parses `--env KEY=value` and `--timeout`,
+//!    and validates the resulting [`fida_exec::ExecRequest`]. Bad cwd / env /
 //!    timeout map to exit 1.
-//! 3. Build a `command.run` [`Action`] and run it through the [`Broker`], with
-//!    an [`ExecDispatcher`] that actually executes the command via
-//!    [`StdCommandExecutor`] only when the broker permits it.
-//! 4. Translate the broker's outcome into the documented exit codes:
-//!    allow -> the command's own exit code, deny -> 2, non-interactive ask -> 3,
-//!    dry-run -> 0.
+//! 3. Evaluates the inferred file reads and the `command.run` action against the
+//!    secret-guard policy: a `deny` is exit 2, an `ask` is exit 3. fida is not
+//!    an approval system, so `ask` always fails closed.
+//! 4. On allow, runs the command through [`StdCommandExecutor`], which redacts
+//!    captured stdout/stderr before it is printed or audited, and propagates the
+//!    command's own exit code.
 
 use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, IsTerminal, Write};
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use chrono::Utc;
 use clap::Args;
 
-use fida_action::{Action, ActionKind, ActionPayload, Actor, Mode};
-use fida_approval::TerminalApprovalUi;
-use fida_audit::{AuditAction, AuditEvent, AuditResult, JsonlAuditStore};
-use fida_broker::{
-    ActionBroker, ActionDispatcher, ActionResult, Broker, BrokerContext, DispatchOutcome,
-    RememberedDecisions, SessionHandle,
-};
+use fida_action::{Action, ActionKind, ActionPayload, Actor, Decision, DecisionResult};
+use fida_audit::{AuditAction, AuditEvent, AuditResult};
 use fida_exec::{
     AuditSink, CommandExecutor, ExecError, ExecRequest, OutputStream, StdCommandExecutor,
 };
-use fida_policy::{load_source, resolve_source_in};
+use fida_policy::{evaluate, load_source, resolve_source_in};
 use fida_secrets::Scanner;
 
 use crate::context::GlobalContext;
@@ -75,8 +70,14 @@ pub async fn run(args: &ExecArgs, ctx: &GlobalContext) -> CliResult {
     // 2. Build and validate the execution request.
     let request = build_request(args)?;
 
-    // 3. Mediate the `command.run` action through the broker.
-    let action = Action {
+    // 3. Gate the inferred file reads and the command against the secret-guard
+    // policy. A deny is exit 2; an `ask` fails closed at exit 3 (fida does not
+    // prompt for approval).
+    for action in inferred_file_read_actions(&request) {
+        gate(&evaluate(&policy, &action))?;
+    }
+
+    let command_action = Action {
         kind: ActionKind::CommandRun,
         actor: Actor::User,
         payload: ActionPayload::Command {
@@ -84,128 +85,60 @@ pub async fn run(args: &ExecArgs, ctx: &GlobalContext) -> CliResult {
             cwd: request.cwd.clone(),
         },
     };
+    let decision = evaluate(&policy, &command_action);
+    gate(&decision)?;
 
-    let mode = if args.dry_run {
-        Mode::DryRun
-    } else {
-        Mode::Enforce
-    };
-    // MVP interactivity: a real tty on stdin means we can prompt; otherwise we
-    // fail closed on `ask`.
-    let interactive = std::io::stdin().is_terminal();
+    // --dry-run evaluates policy but never executes.
+    if args.dry_run {
+        print_dry_run(ctx, &decision);
+        return Ok(());
+    }
 
+    // 4. Allowed: run the command, redacting captured stdout/stderr before it is
+    // printed or audited, and propagate the command's own exit code.
     let scanner = Scanner::new(&policy.secrets);
     let audit_root = fida_session::sessions_root(&root);
-    let mut session = SessionHandle::new("exec");
-    let mut remembered = RememberedDecisions::new();
-    let mut audit = JsonlAuditStore::new(audit_root.clone());
-    let broker = Broker::new(TerminalApprovalUi::new());
-
-    for action in inferred_file_read_actions(&request) {
-        let mut dispatcher = NoopDispatcher;
-        let outcome = {
-            let mut bctx = BrokerContext {
-                policy: &policy,
-                mode,
-                interactive,
-                yes: false,
-                session: &mut session,
-                remembered: &mut remembered,
-                audit: &mut audit,
-                dispatcher: &mut dispatcher,
-            };
-            broker.handle(&mut bctx, action)
-        };
-
-        if matches!(outcome.result, ActionResult::WouldRun) {
-            print_dry_run(ctx, &outcome);
-        }
-
-        if !matches!(
-            outcome.result,
-            ActionResult::Permitted | ActionResult::WouldRun
-        ) {
-            return map_outcome(
-                outcome.result,
-                outcome.exit_code,
-                &outcome.decision.reason,
-                outcome.decision.matched_rule.as_str(),
-                None,
-            );
-        }
+    let executor = StdCommandExecutor::new();
+    let mut sink = StreamingAuditSink::new(audit_root);
+    match executor.run(&request, &scanner, &mut sink) {
+        // A signal/timeout termination reports `-1`; surface it as a generic
+        // non-zero (1) since it does not fit a u8 exit code.
+        Ok(result) => match u8::try_from(result.exit_code).unwrap_or(1) {
+            0 => Ok(()),
+            code => Err(CliError::CommandExit(code)),
+        },
+        Err(err) => Err(CliError::general(format!("failed to run command: {err}"))),
     }
-
-    let mut dispatcher = ExecDispatcher::new(request, scanner, audit_root.clone());
-    let outcome = {
-        let mut bctx = BrokerContext {
-            policy: &policy,
-            mode,
-            interactive,
-            yes: false,
-            session: &mut session,
-            remembered: &mut remembered,
-            audit: &mut audit,
-            dispatcher: &mut dispatcher,
-        };
-        broker.handle(&mut bctx, action)
-    };
-
-    // 4. Translate the broker outcome into the documented exit codes.
-    if matches!(outcome.result, ActionResult::WouldRun) {
-        print_dry_run(ctx, &outcome);
-    }
-    map_outcome(
-        outcome.result,
-        outcome.exit_code,
-        &outcome.decision.reason,
-        outcome.decision.matched_rule.as_str(),
-        dispatcher.error.take(),
-    )
 }
 
-fn print_dry_run(ctx: &GlobalContext, outcome: &fida_broker::BrokerOutcome) {
+fn print_dry_run(ctx: &GlobalContext, decision: &DecisionResult) {
     if ctx.is_quiet() {
         return;
     }
     println!(
         "dry-run: {decision:?} ({reason}) [rule: {rule}]",
-        decision = outcome.decision.decision,
-        reason = outcome.decision.reason,
-        rule = outcome.decision.matched_rule.as_str(),
+        decision = decision.decision,
+        reason = decision.reason,
+        rule = decision.matched_rule.as_str(),
     );
 }
 
-/// Classify a broker outcome into the documented CLI exit codes. Pure and side-effect free so it can be unit-tested without a tty.
+/// Translate a secret-guard policy decision into a gate result. Pure and
+/// side-effect free so it can be unit-tested without a tty.
 ///
-/// * [`ActionResult::WouldRun`] (dry-run) -> success, exit 0.
-/// * [`ActionResult::Permitted`] -> the command's own exit code; a
-///   dispatcher (spawn/IO) failure becomes a generic error (exit 1).
-/// * [`ActionResult::Denied`] -> exit 2 with the matched rule.
-/// * [`ActionResult::Blocked`] (non-interactive ask) -> exit 3.
-fn map_outcome(
-    result: ActionResult,
-    exit_code: u8,
-    reason: &str,
-    rule: &str,
-    dispatcher_error: Option<String>,
-) -> CliResult {
-    match result {
-        ActionResult::WouldRun => Ok(()),
-        ActionResult::Permitted => {
-            if let Some(err) = dispatcher_error {
-                return Err(CliError::general(err));
-            }
-            match exit_code {
-                0 => Ok(()),
-                code => Err(CliError::CommandExit(code)),
-            }
-        }
-        ActionResult::Denied => Err(CliError::PolicyDenied {
-            reason: format!("{reason} [rule: {rule}]"),
-        }),
-        ActionResult::Blocked => Err(CliError::ApprovalRequired {
-            reason: format!("{reason} [rule: {rule}]"),
-        }),
+/// * [`Decision::Allow`] / [`Decision::DryRun`] -> proceed.
+/// * [`Decision::Deny`] -> exit 2 with the matched rule.
+/// * [`Decision::Ask`] -> exit 3; fida does not prompt, so `ask` fails closed.
+fn gate(decision: &DecisionResult) -> CliResult {
+    let detail = format!(
+        "{reason} [rule: {rule}]",
+        reason = decision.reason,
+        rule = decision.matched_rule.as_str(),
+    );
+    match decision.decision {
+        Decision::Allow | Decision::DryRun => Ok(()),
+        Decision::Deny => Err(CliError::PolicyDenied { reason: detail }),
+        Decision::Ask => Err(CliError::ApprovalRequired { reason: detail }),
     }
 }
 
@@ -596,67 +529,6 @@ fn exec_error_to_cli(err: ExecError) -> CliError {
     CliError::general(err.to_string())
 }
 
-// ---------------------------------------------------------------------------
-// Broker collaborators (production wiring)
-// ---------------------------------------------------------------------------
-
-/// The [`ActionDispatcher`] the broker calls for a *permitted* `command.run`.
-///
-/// It owns the validated [`ExecRequest`] and a [`Scanner`] used to redact
-/// captured output, and runs the command through
-/// [`StdCommandExecutor`]. The dispatcher trait cannot return an error, so a
-/// spawn/IO failure is stashed in [`ExecDispatcher::error`] and surfaced by the
-/// caller as a generic failure (exit 1).
-struct ExecDispatcher {
-    request: ExecRequest,
-    scanner: Scanner,
-    audit_root: PathBuf,
-    /// Set when the executor itself failed to run the command (not a non-zero
-    /// command exit, which is reported through [`DispatchOutcome`]).
-    error: Option<String>,
-}
-
-impl ExecDispatcher {
-    fn new(request: ExecRequest, scanner: Scanner, audit_root: PathBuf) -> Self {
-        ExecDispatcher {
-            request,
-            scanner,
-            audit_root,
-            error: None,
-        }
-    }
-}
-
-impl ActionDispatcher for ExecDispatcher {
-    fn dispatch(&mut self, action: &Action) -> DispatchOutcome {
-        if action.kind != ActionKind::CommandRun {
-            return DispatchOutcome::success();
-        }
-        let executor = StdCommandExecutor::new();
-        let mut sink = StreamingAuditSink::new(self.audit_root.clone());
-        match executor.run(&self.request, &self.scanner, &mut sink) {
-            Ok(result) => {
-                // A signal/timeout termination reports `-1`; surface it as a
-                // generic non-zero (1) since it does not fit a u8 exit code.
-                let code = u8::try_from(result.exit_code).unwrap_or(1);
-                DispatchOutcome { exit_code: code }
-            }
-            Err(err) => {
-                self.error = Some(format!("failed to run command: {err}"));
-                DispatchOutcome { exit_code: 1 }
-            }
-        }
-    }
-}
-
-struct NoopDispatcher;
-
-impl ActionDispatcher for NoopDispatcher {
-    fn dispatch(&mut self, _action: &Action) -> DispatchOutcome {
-        DispatchOutcome::success()
-    }
-}
-
 /// Records redacted command output into the same audit namespace as one-off
 /// `fida exec` decisions.
 ///
@@ -782,7 +654,7 @@ fn stream_label(stream: OutputStream) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fida_audit::AuditStore;
+    use fida_audit::{AuditStore, JsonlAuditStore};
 
     fn ctx_with_policy(policy_path: &std::path::Path) -> GlobalContext {
         GlobalContext {
@@ -1005,39 +877,46 @@ files:
     }
 
     #[test]
-    fn non_interactive_ask_blocked_maps_to_exit_3() {
-        // The broker returns `Blocked` for a non-interactive `ask`; the CLI
-        // maps that to exit 3. Tested at the mapping layer so it does
-        // not depend on the ambient terminal.
-        let err = map_outcome(
-            ActionResult::Blocked,
-            3,
-            "needs approval",
-            "commands.ask[0]",
-            None,
-        )
-        .expect_err("blocked must error");
+    fn non_interactive_ask_fails_closed_to_exit_3() {
+        // fida does not prompt for approval, so an `ask` decision always fails
+        // closed at exit 3.
+        let err = block_on(run(
+            &ExecArgs {
+                cwd: None,
+                env: vec![],
+                timeout: None,
+                dry_run: false,
+                command: vec!["true".to_string()],
+            },
+            &ctx_with_policy(&write_policy(
+                "ask_all",
+                "version: 1\ndefault_decision: ask\n",
+            )),
+        ))
+        .expect_err("ask must fail closed");
         assert_eq!(err.exit_code(), 3);
         assert!(matches!(err, CliError::ApprovalRequired { .. }));
     }
 
     #[test]
-    fn map_outcome_covers_every_result() {
-        assert!(map_outcome(ActionResult::WouldRun, 0, "r", "none", None).is_ok());
-        assert!(map_outcome(ActionResult::Permitted, 0, "r", "none", None).is_ok());
-        assert!(matches!(
-            map_outcome(ActionResult::Permitted, 7, "r", "none", None),
-            Err(CliError::CommandExit(7))
-        ));
-        assert!(matches!(
-            map_outcome(ActionResult::Permitted, 0, "r", "none", Some("boom".into())),
-            Err(CliError::General(_))
-        ));
+    fn gate_maps_each_decision() {
+        use fida_action::{MatchedRule, Risk};
+        let result = |d: Decision| DecisionResult {
+            decision: d,
+            reason: "r".to_string(),
+            matched_rule: MatchedRule::NoExplicitRule,
+            risk: Risk::Low,
+            stage: fida_action::EvalStage::ProfileDefault,
+        };
+        assert!(gate(&result(Decision::Allow)).is_ok());
+        assert!(gate(&result(Decision::DryRun)).is_ok());
         assert_eq!(
-            map_outcome(ActionResult::Denied, 2, "blocked", "commands.deny[0]", None)
-                .expect_err("denied")
-                .exit_code(),
+            gate(&result(Decision::Deny)).expect_err("deny").exit_code(),
             2
+        );
+        assert_eq!(
+            gate(&result(Decision::Ask)).expect_err("ask").exit_code(),
+            3
         );
     }
 

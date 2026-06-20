@@ -15,15 +15,15 @@
 //! | 2 | policy deny | yes (exec deny) |
 //! | 3 | non-interactive `ask` (fail closed) | yes (exec ask, stdin not a tty) |
 //! | 4 | invalid / unresolvable policy | yes (version-2, missing --config) |
-//! | 5 | agent command failed | yes (run with failing stub agent) |
+//! | 5 | agent command failed | n/a (agent runner removed) |
 //! | 6 | secret exposure blocked | documented (see `exit_6_secret_blocked_coverage_note`) |
-//! | 7 | session apply failed | documented (see `exit_7_apply_failed_coverage_note`) |
+//! | 7 | session apply failed | n/a (agent runner removed) |
 //!
 //! Determinism: every invocation that could otherwise prompt is run with stdin
 //! redirected to `/dev/null` (not a tty) so the broker fails closed instead of
 //! hanging on an interactive prompt.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use tempfile::TempDir;
@@ -60,15 +60,6 @@ fn code(mut c: Command) -> i32 {
 
 fn output(mut c: Command) -> std::process::Output {
     c.output().expect("spawn fida")
-}
-
-/// Whether `git` is available on PATH (some tests need a real repo).
-fn git_available() -> bool {
-    Command::new("git")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
 }
 
 const ALLOW: &str = "version: 1\ndefault_decision: allow\n";
@@ -282,73 +273,6 @@ fn missing_config_path_exits_4() {
     let mut c = cmd();
     c.arg("--config").arg(&missing).args(["exec", "--", "true"]);
     assert_eq!(code(c), 4);
-}
-
-// ---------------------------------------------------------------------------
-// Exit 5 — agent command failed
-// ---------------------------------------------------------------------------
-
-/// Run a git command in `repo`, asserting success.
-#[cfg(unix)]
-fn git(repo: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .args(args)
-        .current_dir(repo)
-        .output()
-        .expect("git runs");
-    assert!(
-        out.status.success(),
-        "git {args:?} failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-}
-
-/// Initialize a git repo with one commit so `fida run` can record a baseline.
-#[cfg(unix)]
-fn init_git_repo() -> TempDir {
-    let dir = tempfile::tempdir().unwrap();
-    let p = dir.path();
-    git(p, &["init", "-q"]);
-    git(p, &["config", "user.email", "test@example.com"]);
-    git(p, &["config", "user.name", "Test"]);
-    git(p, &["config", "commit.gpgsign", "false"]);
-    std::fs::write(p.join("tracked.txt"), "original\n").unwrap();
-    git(p, &["add", "-A"]);
-    git(p, &["commit", "-q", "-m", "initial"]);
-    dir
-}
-
-#[cfg(unix)]
-#[test]
-fn run_agent_failure_exits_5() {
-    if !git_available() {
-        eprintln!("skipping run_agent_failure_exits_5: git not available");
-        return;
-    }
-    // A non-zero agent exit dominates -> exit 5. The stub agent
-    // `sh -c "exit 1"` fails without touching the workspace.
-    let (_pdir, policy) = temp_policy(ALLOW);
-    let repo = init_git_repo();
-
-    let mut c = cmd();
-    c.current_dir(repo.path())
-        .arg("--quiet")
-        .arg("--config")
-        .arg(&policy)
-        .args([
-            "run",
-            "--mode",
-            "enforce",
-            "--workspace",
-            "current",
-            "--apply",
-            "never",
-            "--",
-            "sh",
-            "-c",
-            "exit 1",
-        ]);
-    assert_eq!(code(c), 5);
 }
 
 // ---------------------------------------------------------------------------

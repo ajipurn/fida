@@ -39,8 +39,7 @@ fi
 have() { command -v "$1" >/dev/null 2>&1; }
 err()  { printf '%serror:%s %s\n' "$RED" "$RESET" "$1" >&2; exit 1; }
 
-# True only when fida is not already on disk at the install location, so the
-# guided setup runs on a fresh install but stays out of the way on upgrades.
+# Retained for sourced callers that opt into the legacy guided-setup helper.
 is_fresh_install() { [ ! -e "$INSTALL_DIR/$BIN_NAME" ]; }
 
 script_dir() {
@@ -52,8 +51,7 @@ script_dir() {
 }
 
 header() {
-  # No ASCII art here: `fida init` renders its own TUI/logo right after, and
-  # two banners back-to-back is noise. Keep the installer to one quiet line.
+  # Keep the installer quiet; guided setup is an explicit next step.
   # printf '\n%sfida%s %s· secret leak prevention for AI coding agents%s\n\n' \
   #   "$BOLD" "$RESET" "$DIM" "$RESET"
   :
@@ -120,17 +118,19 @@ post_install() {
 
   case ":$PATH:" in
     *":$INSTALL_DIR:"*)
-      printf 'run        %s --help\n' "$BIN_NAME"
+      command=$BIN_NAME
       ;;
     *)
-      printf 'run        %s --help\n' "$installed"
+      command=$installed
       ;;
   esac
+
+  printf 'run        %s --help\n' "$command"
+  printf 'next       %s init\n' "$command"
 }
 
-# Hand straight off into the guided setup on a fresh install so there's no
-# separate "now run fida init" step. Upgrades skip it (the user already chose
-# their integrations). `fida init` is unchanged and can be re-run any time.
+# Legacy helper retained for callers that source this script. The installer no
+# longer invokes it; users start guided setup explicitly with `fida init`.
 #
 # A piped install (`curl ... | sh`) leaves stdin as the pipe, so reconnect the
 # controlling terminal via /dev/tty to drive the interactive TUI; without a tty
@@ -298,14 +298,6 @@ install_from_release() {
   printf '%s\n' "$version" >"$tmp/version"
 }
 
-# Capture this before we write the binary: distinguishes a first-time install
-# (run the guided setup) from an upgrade (leave the user's setup alone).
-if is_fresh_install; then
-  FRESH_INSTALL=1
-else
-  FRESH_INSTALL=0
-fi
-
 # Let tests source this file for its helpers without running the install.
 [ "${FIDA_INSTALL_LIB:-}" = "1" ] && return 0 2>/dev/null
 
@@ -314,18 +306,15 @@ header
 if [ "$VERSION" = "source" ]; then
   run_installing install_from_source
   post_install "from source"
-  run_init
   exit 0
 fi
 
 if [ -n "$SOURCE_DIR" ] && [ -z "$REQUESTED_VERSION" ]; then
   run_installing install_from_source
   post_install "from source"
-  run_init
   exit 0
 fi
 
 run_installing install_from_release
 installed_version="$(sed -n '1p' "$tmp/version" 2>/dev/null || printf '%s\n' "$VERSION")"
 post_install "$installed_version"
-run_init
