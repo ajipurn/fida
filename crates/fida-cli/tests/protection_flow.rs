@@ -21,6 +21,7 @@ fn run_on(agent: &str) -> (tempfile::TempDir, tempfile::TempDir, serde_json::Val
         .args(["on", agent, "--json"])
         .current_dir(workspace.path())
         .env("HOME", home.path())
+        .env("FIDA_HOME", home.path())
         .output()
         .unwrap();
     assert!(
@@ -58,6 +59,7 @@ fn off_removes_a_previously_protected_agent() {
         .args(["off", "codex", "--json"])
         .current_dir(workspace.path())
         .env("HOME", home.path())
+        .env("FIDA_HOME", home.path())
         .output()
         .unwrap();
     assert!(
@@ -73,6 +75,7 @@ fn off_removes_a_previously_protected_agent() {
         .args(["status", "--json"])
         .current_dir(workspace.path())
         .env("HOME", home.path())
+        .env("FIDA_HOME", home.path())
         .output()
         .unwrap();
     let status_json: serde_json::Value = serde_json::from_slice(&status.stdout).unwrap();
