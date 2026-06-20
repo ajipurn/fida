@@ -97,6 +97,8 @@ pub enum Command {
     Status(commands::status::StatusArgs),
     /// Find secrets and report whether raw values can reach a model.
     Scan(commands::scan::ScanArgs),
+    /// Remove Fida and all of its files.
+    Uninstall(commands::uninstall::UninstallArgs),
     /// Setup-aware command wrapper for hooks and shims.
     #[command(hide = true)]
     Guard(commands::guard::GuardArgs),
@@ -124,6 +126,7 @@ pub async fn dispatch(
         Some(Command::Off(args)) => commands::toggle::off(&args, ctx).await,
         Some(Command::Status(args)) => commands::status::run(&args, ctx).await,
         Some(Command::Scan(args)) => commands::scan::run(&args, ctx).await,
+        Some(Command::Uninstall(args)) => commands::uninstall::run(&args, ctx).await,
         Some(Command::Guard(args)) => commands::guard::run(&args, ctx).await,
         Some(Command::Hook(args)) => commands::hook::run(&args, ctx).await,
         Some(Command::Exec(args)) => commands::exec::run(&args, ctx).await,

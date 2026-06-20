@@ -1,0 +1,38 @@
+---
+title: Uninstall
+description: Remove Fida completely — agent integrations, config, and the binary.
+---
+
+## Remove Fida
+
+```bash
+fida uninstall
+```
+
+`fida uninstall` removes Fida in one step:
+
+1. **Unwires every agent** — the same cleanup as `fida off`: agent integrations (gateway, skill, hook), setup metadata, and the shell-rc blocks. Non-Fida config is preserved.
+2. **Deletes the global config directory** — `~/.config/fida` (or whatever `FIDA_HOME` / `XDG_CONFIG_HOME` resolve to).
+3. **Deletes the `fida` binary** — the running executable itself.
+
+It asks for confirmation first. Pass `--yes` to skip the prompt (required when stdin is not a terminal, e.g. in CI):
+
+```bash
+fida uninstall --yes
+fida uninstall --json      # machine-readable result
+```
+
+## Just disabling, not removing?
+
+To turn protection off without deleting the binary, use `fida off` instead — it unwires agents but leaves `fida` installed so you can re-enable later with `fida` or `fida on`.
+
+```bash
+fida off                   # disable Fida, keep the binary
+fida off <agent>           # disable a single agent
+```
+
+## What uninstall cannot undo
+
+`fida uninstall` does not edit your PATH. If `install.sh` added its install directory (`~/.local/bin` by default) to your shell profile and you only added it for Fida, remove that line yourself.
+
+On Windows, a running executable cannot delete itself; `fida uninstall` reports `binary_removed: false` and you delete `fida.exe` manually.

@@ -9,6 +9,7 @@
 //! | [`toggle`]  | `fida on` / `fida off`                        |
 //! | [`status`]  | `fida status`                                |
 //! | [`scan`]    | `fida scan`                                  |
+//! | [`uninstall`] | `fida uninstall`                           |
 //! | [`exec`]    | `fida exec -- <cmd>` (hidden)                |
 //! | [`guard`]   | `fida guard -- <cmd>` (hidden)               |
 //! | [`hook`]    | `fida hook` (hidden)                         |
@@ -29,3 +30,4 @@ pub mod setup_state;
 pub mod shell_hook;
 pub mod status;
 pub mod toggle;
+pub mod uninstall;
