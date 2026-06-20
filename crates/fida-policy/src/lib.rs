@@ -20,7 +20,6 @@ pub mod compiled;
 pub mod evaluator;
 pub mod loader;
 pub mod matchers;
-pub mod observe;
 pub mod schema;
 pub mod schema_json;
 
@@ -45,8 +44,3 @@ pub use loader::{
 };
 
 pub use evaluator::{PolicyEvaluator, StagedEvaluator, evaluate};
-
-pub use observe::{
-    Observation, ObservationStore, ObservedCategory, classify_command, load_store,
-    observation_store_path, save_store, suggest_policy,
-};

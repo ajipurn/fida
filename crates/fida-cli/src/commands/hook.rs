@@ -242,7 +242,6 @@ fn deny_json(decision: &DecisionResult) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::presets::STRICT_FIREWALL;
     use fida_action::Decision;
     use fida_policy::{PolicySource, load_source};
 
@@ -371,29 +370,6 @@ mod tests {
             dir.path(),
         );
         assert!(d.is_none(), "fida exec provides its own redaction boundary");
-    }
-
-    #[test]
-    fn strict_firewall_does_not_change_secret_only_hook_behavior() {
-        let dir = tempfile::tempdir().unwrap();
-        let config = dir.path().join("strict.yaml");
-        std::fs::write(&config, STRICT_FIREWALL).unwrap();
-        std::fs::write(
-            dir.path().join(".env"),
-            "API_KEY=abcdefghijklmnopqrstuvwxyz123456\n",
-        )
-        .unwrap();
-        let strict = load_source(&PolicySource::Config(config), None).unwrap();
-
-        let d = decide(
-            &strict,
-            &input(
-                "Bash",
-                serde_json::json!({ "command": "fida exec -- cat .env" }),
-            ),
-            dir.path(),
-        );
-        assert!(d.is_none(), "mediated reads stay available for redaction");
     }
 
     #[test]

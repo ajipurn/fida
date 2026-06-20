@@ -88,9 +88,6 @@ pub enum Command {
     Init(commands::init::InitArgs),
     /// Remove Fida integrations and setup metadata.
     Uninstall(commands::uninstall::UninstallArgs),
-    /// Inspect, validate, and test policy.
-    #[command(hide = true)]
-    Policy(commands::policy::PolicyArgs),
     /// Show current secret-protection status.
     Status(commands::status::StatusArgs),
     /// Setup-aware command wrapper for hooks and shims.
@@ -119,7 +116,6 @@ pub async fn dispatch(command: Command, ctx: &GlobalContext) -> CliResult {
     match command {
         Command::Init(args) => commands::init::run(&args, ctx).await,
         Command::Uninstall(args) => commands::uninstall::run(&args, ctx).await,
-        Command::Policy(args) => commands::policy::run(&args, ctx).await,
         Command::Status(args) => commands::status::run(&args, ctx).await,
         Command::Guard(args) => commands::guard::run(&args, ctx).await,
         Command::Hook(args) => commands::hook::run(&args, ctx).await,
@@ -218,26 +214,12 @@ mod tests {
     }
 
     #[test]
-    fn init_policy_flag_routes_to_policy_scaffold_args() {
-        let cli = Cli::try_parse_from(["fida", "init", "--policy", "--preset", "careful"]).unwrap();
-        match cli.command {
-            Command::Init(args) => {
-                assert!(args.policy);
-                assert_eq!(args.policy_args.preset.as_deref(), Some("careful"));
-            }
-            _ => panic!("init should parse as init"),
-        }
-    }
-
-    #[test]
     fn primary_help_hides_advanced_commands_but_they_still_parse() {
         let help = Cli::command().render_help().to_string();
         for visible in ["init", "scan", "status", "doctor", "audit", "uninstall"] {
             assert!(help.contains(visible), "{visible} should be visible");
         }
-        for hidden in [
-            "policy", "exec", "run", "observe", "session", "report", "mcp",
-        ] {
+        for hidden in ["exec", "guard", "hook", "mcp"] {
             assert!(
                 !help
                     .lines()
@@ -245,7 +227,7 @@ mod tests {
                 "{hidden} should be hidden from primary help"
             );
         }
-        assert!(Cli::try_parse_from(["fida", "policy", "check"]).is_ok());
+        assert!(Cli::try_parse_from(["fida", "exec", "--", "true"]).is_ok());
         assert!(Cli::try_parse_from(["fida", "mcp", "serve"]).is_ok());
     }
 }

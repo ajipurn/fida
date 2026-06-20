@@ -311,14 +311,14 @@ fn exit_7_apply_failed_coverage_note() {
 
 #[test]
 fn json_output_is_valid_json() {
-    // `--json` prints valid, parseable JSON for the command's primary
-    // result. `policy schema` always prints JSON and exits 0, independent of
-    // the working directory.
+    // `--json` prints valid, parseable JSON for the command's primary result.
+    // `scan` over an empty directory finds nothing and exits 0.
+    let dir = tempfile::tempdir().unwrap();
     let mut c = cmd();
-    c.args(["--json", "policy", "schema"]);
+    c.current_dir(dir.path()).args(["--json", "scan"]);
     let out = c.output().expect("spawn fida");
-    assert_eq!(out.status.code(), Some(0), "policy schema must exit 0");
+    assert_eq!(out.status.code(), Some(0), "clean scan must exit 0");
     let parsed: serde_json::Value =
         serde_json::from_slice(&out.stdout).expect("stdout must be valid JSON");
-    assert!(parsed.is_object(), "schema JSON is an object");
+    assert!(parsed.is_object(), "scan JSON is an object");
 }

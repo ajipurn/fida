@@ -26,8 +26,6 @@ pub mod init;
 pub mod install;
 pub mod integrations;
 pub mod mcp;
-pub mod policy;
-pub mod presets;
 pub mod protection;
 pub mod report;
 pub mod scan;
