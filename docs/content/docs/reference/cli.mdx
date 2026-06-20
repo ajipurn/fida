@@ -6,10 +6,10 @@ description: The secret-leak-prevention commands Fida exposes.
 ## Setup and coverage
 
 ```bash
-fida init                         # install integrations and verify redaction
-fida status                       # show protection for detected agents
-fida doctor                       # diagnose setup and run the self-test
-fida uninstall                    # remove Fida-managed integrations
+fida                              # protect every detected agent (or, once installed, update)
+fida on [agent]                   # protect one agent, or all detected agents
+fida off [agent]                  # remove protection from one agent, or all of them
+fida status                       # coverage + how many secrets have been protected
 ```
 
 ## Scan secret exposure
@@ -24,15 +24,6 @@ fida scan --exclude vendor        # prune an extra directory subtree
 ```
 
 `fida scan` never prints a secret value, its length, or a fragment. Its important output is `raw_secret_exposure`: whether a detected agent could receive an unredacted value.
-
-## Inspect safe activity
-
-```bash
-fida audit tail
-fida audit list
-```
-
-Fida audit records are redaction-safe and help diagnose gateway activity and coverage. They are not an agent approval or workflow-management system.
 
 ## Gateway
 

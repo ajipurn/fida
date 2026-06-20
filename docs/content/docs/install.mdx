@@ -13,10 +13,10 @@ Pick the install method that fits your setup.
 curl -fsSL https://raw.githubusercontent.com/ajipurn/fida/main/install.sh | sh
 ```
 
-The script installs `fida` to `~/.local/bin` by default and then exits. Start the interactive agent setup separately when you are ready:
+The script installs `fida` to `~/.local/bin` by default. Run in a terminal, it then offers to set up protection for you; otherwise start setup yourself when you are ready:
 
 ```bash
-fida init
+fida
 ```
 
 ### Pin version or directory
@@ -48,21 +48,15 @@ Confirm the install, then clean up when you no longer need the integrations.
 
 ```bash
 fida --version
-fida doctor
+fida status
 ```
 
-`fida doctor` runs the same secret-protection verification used by onboarding, checks configured agents, and reports each detected agent as `enforced`, `best_effort`, `incomplete`, or `inactive`. It surfaces best-effort coverage as warnings and incomplete protection as a setup failure.
+`fida status` reports each detected agent as `enforced`, `best_effort`, `incomplete`, or `inactive`, shows the recorded redaction self-test result, and counts how many secrets have been protected in the current repository.
 
-### Uninstall integrations
+### Turn off protection
 
 ```bash
-fida uninstall
+fida off
 ```
 
-This removes Fida-managed agent integrations and setup metadata while preserving non-Fida config. It prints the binary path to delete manually because Fida does not remove its own running executable.
-
-Project-scoped uninstall:
-
-```bash
-fida uninstall --project
-```
+`fida off` removes Fida-managed agent integrations and setup metadata while preserving non-Fida config; `fida off <agent>` disables a single agent. Delete the binary yourself when you are done — Fida never removes its own running executable.

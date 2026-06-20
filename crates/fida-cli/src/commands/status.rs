@@ -1,7 +1,10 @@
 //! `fida status` — show effective activation state.
 
+use std::path::Path;
+
 use clap::Args;
 use fida_action::ProtectionLevel;
+use fida_audit::JsonlAuditStore;
 
 use crate::commands::setup_state::{
     SetupRecord, global_setup_path, read_config, read_project_config,
@@ -18,13 +21,52 @@ pub async fn run(_args: &StatusArgs, ctx: &GlobalContext) -> CliResult {
     let project = read_project_config(&root)?;
     let global_path = global_setup_path()?;
     let global = read_config(&global_path)?;
-    report(project.as_ref(), global.as_ref(), &global_path, ctx)
+    let secrets_protected = protected_secret_count(&root);
+    report(
+        project.as_ref(),
+        global.as_ref(),
+        &global_path,
+        secrets_protected,
+        ctx,
+    )
+}
+
+/// Count redactions recorded in this repo's audit log — the running tally of
+/// secret values Fida has kept out of model context. Resolved from the same
+/// audit directory the gateway writes to (`policy.audit.path`, per-repo), this
+/// fails soft to `0` when no log, policy, or directory is present.
+fn protected_secret_count(repo: &Path) -> usize {
+    let Ok(policy) = fida_policy::load_secret_guard_policy() else {
+        return 0;
+    };
+    let root = if policy.audit.path.is_absolute() {
+        policy.audit.path.clone()
+    } else {
+        repo.join(&policy.audit.path)
+    };
+    let store = JsonlAuditStore::new(&root);
+    let Ok(entries) = std::fs::read_dir(&root) else {
+        return 0;
+    };
+    let mut count = 0;
+    for entry in entries.flatten() {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        if let Some(session) = entry.file_name().to_str() {
+            if let Ok(report) = store.read_report(session) {
+                count += report.events.iter().filter(|e| e.redacted).count();
+            }
+        }
+    }
+    count
 }
 
 fn report(
     project: Option<&SetupRecord>,
     global: Option<&SetupRecord>,
     global_path: &std::path::Path,
+    secrets_protected: usize,
     ctx: &GlobalContext,
 ) -> CliResult {
     let effective = effective_record(project, global);
@@ -41,6 +83,7 @@ fn report(
             "project": record_json(project),
             "global": record_json(global),
             "global_path": global_path,
+            "secrets_protected": secrets_protected,
         }))
         .map_err(|e| CliError::general(format!("failed to encode status JSON: {e}")))?;
         println!("{raw}");
@@ -61,6 +104,7 @@ fn report(
                 record.config.scope.label()
             );
             println!("Secret values are redacted before reaching the model.");
+            println!("Secrets protected (this repo): {secrets_protected}");
             println!("Effective config: {}", record.path.display());
             println!("Agents:");
             for entry in &levels {
@@ -78,7 +122,7 @@ fn report(
                     if v.passed { "passed" } else { "failed" },
                     v.detail
                 ),
-                None => println!("Verification: not recorded; run `fida init` again."),
+                None => println!("Verification: not recorded; run `fida` again."),
             }
 
             if let Some(policy) = &record.config.policy_hint {
@@ -88,7 +132,7 @@ fn report(
         None => {
             println!("Fida status: inactive");
             println!("No project or global setup found.");
-            println!("Run `fida init` to initialize Fida for your agents.");
+            println!("Run `fida` to install protection.");
         }
     }
 
@@ -204,5 +248,49 @@ mod tests {
         let effective = effective_record(Some(&project), Some(&global)).unwrap();
         assert_eq!(effective.config.scope, SetupScope::Project);
         assert_eq!(effective.config.agents, ["codex"]);
+    }
+
+    #[test]
+    fn count_tallies_only_redacted_events_in_the_repo_audit_log() {
+        use fida_action::{Actor, Decision, MatchedRule, Risk};
+        use fida_audit::{AuditAction, AuditEvent, AuditResult, AuditStore};
+
+        let repo = tempfile::tempdir().unwrap();
+        let policy = fida_policy::load_secret_guard_policy().unwrap();
+        // Resolve the audit root exactly as `protected_secret_count` does, so the
+        // event we write lands where the counter reads it.
+        let root = if policy.audit.path.is_absolute() {
+            policy.audit.path.clone()
+        } else {
+            repo.path().join(&policy.audit.path)
+        };
+        let mut store = JsonlAuditStore::new(&root);
+
+        let event = |redacted: bool| AuditEvent {
+            id: "evt".to_string(),
+            session_id: "s1".to_string(),
+            time: chrono::Utc::now(),
+            actor: Actor::Agent,
+            action: AuditAction::SecretDetected {
+                pattern_id: "aws_access_key".to_string(),
+                reason: "test".to_string(),
+            },
+            decision: Decision::Allow,
+            result: AuditResult::Allowed,
+            matched_rule: MatchedRule::NoExplicitRule,
+            risk: Risk::Low,
+            redacted,
+            metrics: None,
+        };
+        store.append(&event(true)).unwrap();
+        store.append(&event(false)).unwrap();
+
+        assert_eq!(protected_secret_count(repo.path()), 1);
+    }
+
+    #[test]
+    fn count_is_zero_when_no_audit_log_exists() {
+        let repo = tempfile::tempdir().unwrap();
+        assert_eq!(protected_secret_count(repo.path()), 0);
     }
 }

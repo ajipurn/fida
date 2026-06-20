@@ -23,18 +23,17 @@ It is deliberately **not** a general agent policy engine, approval system, or de
 ## Quick start
 
 ```bash
-# Install the binary.
+# Install the binary. In a terminal it offers to set up protection right away.
 curl -fsSL https://raw.githubusercontent.com/ajipurn/fida/main/install.sh | sh
 
-# Opt in to agent protection when you are ready.
-fida init
+# Run fida with no arguments any time to set up — or, once installed, to update.
+fida
 
-# Check coverage and scan the current repository.
+# Check coverage, including how many secrets have been protected.
 fida status
-fida scan
 ```
 
-The installer only installs `fida`; it never launches an interactive setup. It prints the exact `fida init` command to run next.
+`fida` is install-and-forget: it wires every coding agent it detects, and running it again later checks for an update. Run from a terminal, the installer offers to do this for you; piped or in CI it stays quiet and just prints `fida` as the next step.
 
 ## What Fida does
 
@@ -67,10 +66,10 @@ Fida fails closed on redaction: if it cannot prove a response is clean, it suppr
 curl -fsSL https://raw.githubusercontent.com/ajipurn/fida/main/install.sh | sh
 ```
 
-The binary is installed to `~/.local/bin` by default and then exits. Start interactive setup separately:
+The binary is installed to `~/.local/bin` by default. Run in an interactive terminal, the installer then offers to wire protection for you; otherwise start setup yourself:
 
 ```bash
-fida init
+fida
 ```
 
 Pin a version or choose another install directory:
@@ -93,13 +92,12 @@ cd fida
 ## Everyday commands
 
 ```bash
-fida init             # wire selected agent integrations and verify redaction
-fida status           # show enforced, best-effort, or incomplete coverage
+fida                  # protect every detected agent (or, once installed, update)
+fida on [agent]       # protect one agent, or all detected agents
+fida off [agent]      # remove protection from one agent, or all of them
+fida status           # coverage + how many secrets have been protected
 fida scan             # find secret risk without printing secret values
 fida scan --fail-on high
-fida doctor           # diagnose setup and redaction verification
-fida audit tail       # inspect redaction-safe gateway activity
-fida uninstall        # remove only Fida-managed integrations
 ```
 
 `fida scan` reports whether a raw secret could reach a detected agent. It never prints a secret value, its length, or a fragment of it.
@@ -111,7 +109,7 @@ fida uninstall        # remove only Fida-managed integrations
 | Codex, Claude Code | `enforced` when the hook and gateway self-test pass |
 | Cursor, OpenCode, GitHub Copilot, Windsurf, Antigravity, Kiro | `best_effort` gateway + steering |
 
-`fida status` and `fida doctor` report the actual state for each detected agent: `enforced`, `best_effort`, `incomplete`, or `inactive`.
+`fida status` reports the actual state for each detected agent: `enforced`, `best_effort`, `incomplete`, or `inactive`.
 
 ## Scope and limits
 

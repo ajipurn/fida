@@ -27,8 +27,13 @@ pub struct Cli {
     #[command(flatten)]
     pub globals: GlobalArgs,
 
+    /// Flags for the bare `fida` install/update flow (used when no subcommand
+    /// is given).
+    #[command(flatten)]
+    pub root: commands::root::RootArgs,
+
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 /// Global options available on every subcommand.
@@ -84,12 +89,14 @@ impl GlobalArgs {
 /// handler live in the owning module under [`crate::commands`].
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Install, verify, and scan secret protection for your agents.
-    Init(commands::init::InitArgs),
-    /// Remove Fida integrations and setup metadata.
-    Uninstall(commands::uninstall::UninstallArgs),
+    /// Protect one agent or every detected agent.
+    On(commands::toggle::OnArgs),
+    /// Remove Fida protection from one agent or all of them.
+    Off(commands::toggle::OffArgs),
     /// Show current secret-protection status.
     Status(commands::status::StatusArgs),
+    /// Find secrets and report whether raw values can reach a model.
+    Scan(commands::scan::ScanArgs),
     /// Setup-aware command wrapper for hooks and shims.
     #[command(hide = true)]
     Guard(commands::guard::GuardArgs),
@@ -99,31 +106,28 @@ pub enum Command {
     /// Run one shell command through policy.
     #[command(hide = true)]
     Exec(commands::exec::ExecArgs),
-    /// Read audit events.
-    Audit(commands::audit::AuditArgs),
     /// Inspect and proxy MCP servers.
     #[command(hide = true)]
     Mcp(commands::mcp::McpArgs),
-    /// Check secret-protection setup.
-    Doctor(commands::doctor::DoctorArgs),
-    /// Find secrets and report whether raw values can reach a model.
-    Scan(commands::scan::ScanArgs),
 }
 
-/// Route a parsed command to its handler. This is the single dispatch seam the
-/// per-command tasks (19.2–19.10) plug into.
-pub async fn dispatch(command: Command, ctx: &GlobalContext) -> CliResult {
+/// Route a parsed command to its handler. A bare `fida` (no subcommand) runs the
+/// install/update flow; `root` carries that flow's flags.
+pub async fn dispatch(
+    command: Option<Command>,
+    root: &commands::root::RootArgs,
+    ctx: &GlobalContext,
+) -> CliResult {
     match command {
-        Command::Init(args) => commands::init::run(&args, ctx).await,
-        Command::Uninstall(args) => commands::uninstall::run(&args, ctx).await,
-        Command::Status(args) => commands::status::run(&args, ctx).await,
-        Command::Guard(args) => commands::guard::run(&args, ctx).await,
-        Command::Hook(args) => commands::hook::run(&args, ctx).await,
-        Command::Exec(args) => commands::exec::run(&args, ctx).await,
-        Command::Audit(args) => commands::audit::run(&args, ctx).await,
-        Command::Mcp(args) => commands::mcp::run(&args, ctx).await,
-        Command::Doctor(args) => commands::doctor::run(&args, ctx).await,
-        Command::Scan(args) => commands::scan::run(&args, ctx).await,
+        None => commands::root::run(root, ctx).await,
+        Some(Command::On(args)) => commands::toggle::on(&args, ctx).await,
+        Some(Command::Off(args)) => commands::toggle::off(&args, ctx).await,
+        Some(Command::Status(args)) => commands::status::run(&args, ctx).await,
+        Some(Command::Scan(args)) => commands::scan::run(&args, ctx).await,
+        Some(Command::Guard(args)) => commands::guard::run(&args, ctx).await,
+        Some(Command::Hook(args)) => commands::hook::run(&args, ctx).await,
+        Some(Command::Exec(args)) => commands::exec::run(&args, ctx).await,
+        Some(Command::Mcp(args)) => commands::mcp::run(&args, ctx).await,
     }
 }
 
@@ -140,7 +144,7 @@ mod tests {
 
     #[test]
     fn quiet_and_verbose_together_is_a_usage_error() {
-        let cli = Cli::try_parse_from(["fida", "--quiet", "--verbose", "doctor"])
+        let cli = Cli::try_parse_from(["fida", "--quiet", "--verbose", "status"])
             .expect("clap should parse; the conflict is a runtime usage check");
         let err = cli
             .globals
@@ -152,7 +156,7 @@ mod tests {
 
     #[test]
     fn quiet_alone_resolves_to_quiet() {
-        let cli = Cli::try_parse_from(["fida", "--quiet", "doctor"]).unwrap();
+        let cli = Cli::try_parse_from(["fida", "--quiet", "status"]).unwrap();
         let ctx = cli.globals.resolve().unwrap();
         assert!(ctx.is_quiet());
         assert!(!ctx.is_verbose());
@@ -160,7 +164,7 @@ mod tests {
 
     #[test]
     fn verbose_alone_resolves_to_verbose() {
-        let cli = Cli::try_parse_from(["fida", "--verbose", "doctor"]).unwrap();
+        let cli = Cli::try_parse_from(["fida", "--verbose", "status"]).unwrap();
         let ctx = cli.globals.resolve().unwrap();
         assert!(ctx.is_verbose());
         assert!(!ctx.is_quiet());
@@ -168,14 +172,14 @@ mod tests {
 
     #[test]
     fn global_options_parse_after_subcommand() {
-        let cli = Cli::try_parse_from(["fida", "doctor", "--json", "--no-color"]).unwrap();
+        let cli = Cli::try_parse_from(["fida", "status", "--json", "--no-color"]).unwrap();
         assert!(cli.globals.json);
         assert!(cli.globals.no_color);
     }
 
     #[test]
     fn config_path_is_captured() {
-        let cli = Cli::try_parse_from(["fida", "--config", "/tmp/p.yaml", "doctor"]).unwrap();
+        let cli = Cli::try_parse_from(["fida", "--config", "/tmp/p.yaml", "status"]).unwrap();
         assert_eq!(
             cli.globals.config.as_deref(),
             Some(std::path::Path::new("/tmp/p.yaml"))
@@ -190,33 +194,33 @@ mod tests {
 
     #[test]
     fn unrecognized_option_is_a_parse_error() {
-        let err = Cli::try_parse_from(["fida", "doctor", "--nope"]).unwrap_err();
+        let err = Cli::try_parse_from(["fida", "status", "--nope"]).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
     }
 
     #[test]
-    fn bare_invocation_is_not_treated_as_help_or_version() {
-        // No subcommand → a usage error (exit 1), distinct from explicit
-        // `--help`/`--version` (exit 0).
-        let err = Cli::try_parse_from(["fida"]).unwrap_err();
-        let kind = err.kind();
-        assert_ne!(kind, clap::error::ErrorKind::DisplayHelp);
-        assert_ne!(kind, clap::error::ErrorKind::DisplayVersion);
+    fn bare_invocation_runs_the_root_flow() {
+        // No subcommand is valid now: bare `fida` drives the install/update
+        // flow, so it parses to `command: None` rather than erroring.
+        let cli = Cli::try_parse_from(["fida"]).expect("bare fida parses");
+        assert!(cli.command.is_none());
     }
 
     #[test]
-    fn uninstall_is_a_top_level_command() {
-        let cli = Cli::try_parse_from(["fida", "uninstall", "--project"]).unwrap();
-        match cli.command {
-            Command::Uninstall(args) => assert!(args.project),
-            _ => panic!("uninstall should parse as its own command"),
+    fn on_and_off_are_top_level_commands() {
+        let on = Cli::try_parse_from(["fida", "on", "codex"]).unwrap();
+        match on.command {
+            Some(Command::On(args)) => assert_eq!(args.agents, ["codex"]),
+            _ => panic!("on should parse as its own command"),
         }
+        let off = Cli::try_parse_from(["fida", "off"]).unwrap();
+        assert!(matches!(off.command, Some(Command::Off(_))));
     }
 
     #[test]
     fn primary_help_hides_advanced_commands_but_they_still_parse() {
         let help = Cli::command().render_help().to_string();
-        for visible in ["init", "scan", "status", "doctor", "audit", "uninstall"] {
+        for visible in ["off", "scan", "status"] {
             assert!(help.contains(visible), "{visible} should be visible");
         }
         for hidden in ["exec", "guard", "hook", "mcp"] {

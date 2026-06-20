@@ -213,14 +213,19 @@ files:
     let home = tempfile::tempdir().unwrap();
     std::fs::write(project.path().join(".env"), "TOP_SECRET=fida\n").unwrap();
 
-    let mut init_cmd = cmd();
-    init_cmd
+    // Activate protection globally (isolated via FIDA_HOME/HOME) so the guard
+    // mediates instead of passing the command through.
+    let mut on_cmd = cmd();
+    on_cmd
         .current_dir(project.path())
-        .args(["init", "--project", "--agents", "codex"]);
-    assert_eq!(code(init_cmd), 0);
+        .env("HOME", home.path())
+        .env("FIDA_HOME", home.path())
+        .args(["on", "codex"]);
+    assert_eq!(code(on_cmd), 0);
 
     let mut c = cmd();
     c.current_dir(project.path())
+        .env("HOME", home.path())
         .env("FIDA_HOME", home.path())
         .arg("--config")
         .arg(&policy)

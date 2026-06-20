@@ -10,31 +10,33 @@ curl -fsSL https://raw.githubusercontent.com/ajipurn/fida/main/install.sh | sh
 fida --version
 ```
 
-The installer only installs the binary. It prints `fida init` as the explicit next step instead of opening an interactive setup unexpectedly.
+Run in a terminal, the installer offers to set up protection for you. Piped or in CI it stays quiet and just prints `fida` as the next step.
 
 ## Protect your agents
 
 ```bash
-fida init
+fida
 ```
 
-Fida detects supported agents, installs its redacting gateway and steering, runs a synthetic-secret self-test, and scans the current repository.
+Bare `fida` detects every supported agent, installs its redacting gateway and steering for each, and runs a synthetic-secret self-test. Run it again later and it checks for an update instead. Protection is global — one install guards every repository.
 
-Scriptable setup is available:
+Toggle individual agents, or script setup non-interactively:
 
 ```bash
-fida init --yes
-fida init --agents codex,claude
-fida init --all
-fida init --project
+fida --yes              # accept the detected agents without prompting
+fida on codex           # protect a single agent
+fida on                 # protect every detected agent
+fida off codex          # remove protection from one agent
+fida off                # remove protection from all agents
 ```
 
 ## Check coverage
 
 ```bash
 fida status
-fida doctor
 ```
+
+`fida status` also reports how many secrets it has protected in the current repository.
 
 | Level | Meaning |
 | --- | --- |

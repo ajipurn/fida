@@ -3,10 +3,10 @@ title: Agent Integrations
 description: Wire Fida into Codex, Claude Code, Cursor, OpenCode, Copilot, Windsurf, and MCP clients.
 ---
 
-Run one command to wire supported agents, verify redaction, and scan the repository:
+Run one command to wire every supported agent it detects and verify redaction:
 
 ```bash
-fida init
+fida
 ```
 
 Fida detects agents by home-directory config, project marker files, CLI binaries on `PATH`, and macOS application bundles. Setup records the artifacts it actually installed, so later status checks can tell whether protection is still intact.
@@ -18,13 +18,13 @@ Wire agents globally or per project, then see exactly what each integration touc
 ### Scriptable setup
 
 ```bash
-fida init --yes
-fida init --agents opencode,cursor
-fida init --all
-fida init --project
+fida --yes                       # protect every detected agent, no prompt
+fida on opencode cursor          # protect specific agents
+fida on                          # protect every detected agent
+fida off opencode                # remove protection from one agent
 ```
 
-Global setup is the default. Project setup writes project-scoped config where the target agent supports it.
+Setup is global — one install guards every repository.
 
 ### Integration surfaces
 
@@ -40,7 +40,7 @@ Global setup is the default. Project setup writes project-scoped config where th
 
 ### Protection levels
 
-The three layers are not equally strong on every agent, and Fida is explicit about it. `fida init`, `fida status`, and `fida doctor` use the same protection model:
+The three layers are not equally strong on every agent, and Fida is explicit about it. `fida`, `fida on`, and `fida status` use the same protection model:
 
 | Level         | Meaning                                                                                 |
 | ------------- | --------------------------------------------------------------------------------------- |
@@ -51,17 +51,17 @@ The three layers are not equally strong on every agent, and Fida is explicit abo
 
 Codex and Claude Code can be `enforced` because they support a pre-tool hook that hard-blocks native reads containing detected secrets. Cursor, OpenCode, GitHub Copilot, Windsurf, and Antigravity are normally `best_effort`: the gateway tools and assertive steering apply, but there is no hard hook to force every native read through Fida.
 
-Run `fida status` for the day-to-day report and `fida doctor` when diagnosing gaps. For best-effort agents, add OS-level controls when you need containment that does not depend on the agent following steering. See the [security model](/docs/concepts/security-model) for how the layers stack.
+Run `fida status` for the day-to-day report, including how many secrets have been protected. For best-effort agents, add OS-level controls when you need containment that does not depend on the agent following steering. See the [security model](/docs/concepts/security-model) for how the layers stack.
 
 ### Managed blocks
 
-Files shared with you, such as `CLAUDE.md`, `AGENTS.md`, `~/.gemini/GEMINI.md`, and Windsurf global rules, are edited through managed blocks. Your own content is preserved during init and uninstall.
+Files shared with you, such as `CLAUDE.md`, `AGENTS.md`, `~/.gemini/GEMINI.md`, and Windsurf global rules, are edited through managed blocks. Your own content is preserved when protection is added or removed.
 
 ## Remove integrations
 
 ```bash
-fida uninstall
-fida uninstall --project
+fida off                         # remove protection from all agents
+fida off cursor                  # remove protection from one agent
 ```
 
-Uninstall removes Fida-managed blocks and setup metadata. It does not delete unrelated agent configuration.
+`fida off` removes Fida-managed blocks and setup metadata. It does not delete unrelated agent configuration.

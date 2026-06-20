@@ -47,15 +47,6 @@ pub enum Scope {
     Global,
 }
 
-impl Scope {
-    pub fn label(self) -> &'static str {
-        match self {
-            Scope::Project => "project",
-            Scope::Global => "global",
-        }
-    }
-}
-
 /// A layer's location relative to the scope base (repo root or home dir).
 /// `None` for a scope means the layer is unavailable there.
 #[derive(Debug, Clone, Copy)]
@@ -368,7 +359,8 @@ pub fn known_agents() -> Vec<AgentSpec> {
     ]
 }
 
-/// Look up an agent spec by its CLI id.
+/// Look up an agent spec by its CLI id. Test-only helper.
+#[cfg(test)]
 pub fn find_agent(id: &str) -> Option<AgentSpec> {
     known_agents().into_iter().find(|a| a.id == id)
 }
@@ -377,7 +369,7 @@ pub fn find_agent(id: &str) -> Option<AgentSpec> {
 /// *native* tool call the assertive skill failed to redirect.
 ///
 /// Derived mechanically from the agent's [`HookTarget`] so documentation and
-/// `fida doctor` can never claim a stronger guarantee than the registry wires.
+/// `fida status` can never claim a stronger guarantee than the registry wires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Backstop {
     /// A real hard block: the `fida hook` command returns a `deny` decision and
@@ -390,23 +382,12 @@ pub enum Backstop {
     SkillOnly,
 }
 
-impl Backstop {
-    /// Short, stable label used in `doctor` output and the docs matrix.
-    pub fn label(self) -> &'static str {
-        match self {
-            Backstop::HardBlock => "hard-block",
-            Backstop::SoftPrompt => "soft-prompt",
-            Backstop::SkillOnly => "skill-only",
-        }
-    }
-}
-
 /// One row of the agent guard-coverage matrix: which of the three layers an
-/// agent supports, plus the strength of its backstop.
+/// agent supports, plus the strength of its backstop. Test-only.
+#[cfg(test)]
 #[derive(Debug, Clone)]
 pub struct AgentCoverage {
     pub id: &'static str,
-    pub display: &'static str,
     /// Whether a gateway MCP server is wired for this agent in any scope.
     pub gateway: bool,
     /// Whether an always-on skill/rules file is written for this agent.
@@ -426,14 +407,14 @@ pub fn backstop_of(spec: &AgentSpec) -> Backstop {
 }
 
 /// The full agent × {gateway, skill, backstop} coverage matrix, derived from
-/// the registry. This is the single source of truth the docs table and
-/// `fida doctor` both read, so they cannot drift from what is actually wired.
+/// the registry. Test-only: it pins the documented backstops so the registry and
+/// docs table cannot silently drift.
+#[cfg(test)]
 pub fn coverage_matrix() -> Vec<AgentCoverage> {
     known_agents()
         .iter()
         .map(|spec| AgentCoverage {
             id: spec.id,
-            display: spec.display,
             gateway: spec.mcp.is_some(),
             // Every registered agent has a skill target today; kept explicit so
             // a future skill-less agent shows up correctly in the matrix.
@@ -448,7 +429,7 @@ pub fn coverage_matrix() -> Vec<AgentCoverage> {
 ///
 /// Checks the agent's marker files under the workspace (project signal) and the
 /// home directory (global signal — e.g. `~/.cursor`, `~/.claude`), plus its CLI
-/// binaries on `PATH`. This is what lets `fida init` auto-detect every coding
+/// binaries on `PATH`. This is what lets `fida` auto-detect every coding
 /// agent actually present on the machine, not just those configured in the repo.
 pub fn detect(
     spec: &AgentSpec,

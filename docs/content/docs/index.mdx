@@ -22,12 +22,12 @@ Normal clean reads, edits, commands, network use, and approvals remain unrestric
 ## Get started
 
 ```bash
-fida init
+fida
 fida status
 fida scan
 ```
 
-`fida init` wires selected agent integrations, runs a synthetic-secret self-test, and scans the repository. `fida status` reports protection as `enforced`, `best_effort`, `incomplete`, or `inactive`. `fida scan` never emits a secret value, length, or fragment.
+Bare `fida` wires every detected agent globally and runs a synthetic-secret self-test (run it again later to check for an update); `fida on`/`fida off` toggle individual agents. `fida status` reports protection as `enforced`, `best_effort`, `incomplete`, or `inactive`, plus how many secrets have been protected. `fida scan` never emits a secret value, length, or fragment.
 
 ## Honest limit
 

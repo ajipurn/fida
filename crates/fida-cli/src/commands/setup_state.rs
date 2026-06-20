@@ -178,18 +178,6 @@ pub fn global_setup_path() -> CliResult<PathBuf> {
         "cannot resolve global setup path: set FIDA_HOME or HOME",
     ))
 }
-pub fn policy_hint_for(root: &Path) -> String {
-    let dot_fida = root.join(".fida/policy.yaml");
-    if dot_fida.exists() {
-        return ".fida/policy.yaml".to_string();
-    }
-    let fida_yaml = root.join("fida.yaml");
-    if fida_yaml.exists() {
-        return "fida.yaml".to_string();
-    }
-    "built-in default policy".to_string()
-}
-
 pub fn write_config(path: &Path, config: &SetupConfig, force: bool) -> CliResult {
     if path.exists() && !force {
         return Err(CliError::general(format!(

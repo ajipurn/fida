@@ -39,9 +39,6 @@ fi
 have() { command -v "$1" >/dev/null 2>&1; }
 err()  { printf '%serror:%s %s\n' "$RED" "$RESET" "$1" >&2; exit 1; }
 
-# Retained for sourced callers that opt into the legacy guided-setup helper.
-is_fresh_install() { [ ! -e "$INSTALL_DIR/$BIN_NAME" ]; }
-
 script_dir() {
   case "$0" in
     */*) dir=${0%/*} ;;
@@ -126,26 +123,29 @@ post_install() {
   esac
 
   printf 'run        %s --help\n' "$command"
-  printf 'next       %s init\n' "$command"
+  offer_setup "$installed" "$command"
 }
 
-# Legacy helper retained for callers that source this script. The installer no
-# longer invokes it; users start guided setup explicitly with `fida init`.
-#
-# A piped install (`curl ... | sh`) leaves stdin as the pipe, so reconnect the
-# controlling terminal via /dev/tty to drive the interactive TUI; without a tty
-# we skip rather than emit a degraded non-interactive run.
-run_init() {
-  [ "$FRESH_INSTALL" = "1" ] || return 0
-  installed="$INSTALL_DIR/$BIN_NAME"
-  [ -x "$installed" ] || return 0
+# Offer to wire protection right away, but only when a real terminal is attached.
+# A piped install (`curl ... | sh`) leaves stdin as the pipe, so we reconnect the
+# controlling terminal via /dev/tty to drive both the prompt and `fida` itself.
+# Without a tty (CI, non-interactive) we just print the next step and exit — the
+# installer never launches an interactive flow behind the user's back.
+offer_setup() {
+  installed="$1"
+  command="$2"
+  if [ ! -x "$installed" ] || [ ! -r /dev/tty ] || [ ! -t 1 ]; then
+    printf 'next       %s\n' "$command"
+    return 0
+  fi
 
   printf '\n'
-  if [ -r /dev/tty ] && [ -t 1 ]; then
-    "$installed" init </dev/tty || true
-  elif [ -t 0 ] && [ -t 1 ]; then
-    "$installed" init || true
-  fi
+  printf 'Run %s now to set up protection? [Y/n] ' "$command"
+  read answer </dev/tty || answer=""
+  case "$answer" in
+    ''|[Yy]|[Yy][Ee][Ss]) "$installed" </dev/tty || true ;;
+    *) printf 'next       %s\n' "$command" ;;
+  esac
 }
 
 SCRIPT_DIR="$(script_dir 2>/dev/null || pwd)"
