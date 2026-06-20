@@ -3,56 +3,50 @@
 @import 'fumadocs-ui/css/preset.css';
 
 /* Hallmark · pre-emit critique: P5 H5 E4 S5 R4 V4
- * macrostructure: Marquee Hero · genre: technical/Hum · theme: Hum (Plus Jakarta Sans + JetBrains Mono)
- * tone: credible-cool · anchor: sky blue · enrichment: hand-built redaction demo (no fake chrome)
- * palette: Sky blue — cool light sky-tinted paper + sky-blue accent (terracotta/olive kept as semantic states only)
- * surfaces drive BOTH HomePage + /docs via fumadocs --color-fd-* token overrides.
+ * macrostructure: Cinematic Hero · genre: technical/Hum · theme: Hum (IBM Plex Sans + IBM Plex Mono)
+ * tone: credible-cool · anchor: sky blue · enrichment: art-directed dark landing (Lenis + WebGL + scroll story)
+ * palette: cinematic dark — near-black ink + sky-blue accent; warm terracotta as the "exposed" semantic only.
+ * The /docs surfaces still use the fumadocs --color-fd-* token overrides below.
  */
 
 :root {
-  /* Fida accent system — SKY BLUE (OKLCH, locked tokens)
-   * sky-blue accent on cool light paper; terracotta + olive kept
-   * only as semantic states (blocked / success) inside the demo. */
-  --fida-accent: oklch(0.68 0.15 237); /* sky blue — glows, dots, caret */
-  --fida-accent-strong: oklch(0.59 0.15 242); /* button face — deep sky */
-  --fida-accent-press: oklch(0.5 0.13 245); /* button edge — sky shadow */
-  --fida-accent-ink: oklch(0.5 0.13 245); /* accent text on light paper */
-  --fida-on-accent: oklch(0.99 0.01 230); /* near-white text on sky */
-  --fida-deny: oklch(0.52 0.15 33); /* terracotta — semantic blocked, demo only */
+  /* Fida accent system — SKY BLUE (OKLCH, locked tokens) */
+  --fida-accent: oklch(0.68 0.15 237);
+  --fida-accent-strong: oklch(0.59 0.15 242);
+  --fida-accent-press: oklch(0.5 0.13 245);
+  --fida-accent-ink: oklch(0.5 0.13 245);
+  --fida-on-accent: oklch(0.99 0.01 230);
+  --fida-deny: oklch(0.52 0.15 33);
   --fida-deny-ink: oklch(0.47 0.15 33);
-  --fida-allow: oklch(0.52 0.1 105); /* olive — semantic success */
-  --fida-btn-cast: oklch(0.5 0.13 245 / 0.4); /* sky cast shadow for 3D buttons */
+  --fida-allow: oklch(0.52 0.1 105);
+  --fida-btn-cast: oklch(0.5 0.13 245 / 0.4);
 
-  /* motion */
   --fida-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --fida-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --fida-ease-3d: cubic-bezier(0.2, 0.7, 0.3, 1);
   --fida-dur: 0.18s;
 
-  /* shape + space (4pt scale) */
   --fida-radius: 14px;
   --fida-radius-sm: 9px;
   --fida-maxw: 1080px;
 }
 
 .dark {
-  --fida-accent: oklch(0.8 0.12 232); /* light sky on dark */
-  --fida-accent-strong: oklch(0.75 0.13 234); /* button face — sky on dark */
-  --fida-accent-press: oklch(0.65 0.14 238); /* button edge */
-  --fida-accent-ink: oklch(0.8 0.12 232); /* accent text on dark */
-  --fida-on-accent: oklch(0.2 0.03 250); /* dark text on sky button */
+  --fida-accent: oklch(0.8 0.12 232);
+  --fida-accent-strong: oklch(0.75 0.13 234);
+  --fida-accent-press: oklch(0.65 0.14 238);
+  --fida-accent-ink: oklch(0.8 0.12 232);
+  --fida-on-accent: oklch(0.2 0.03 250);
   --fida-deny-ink: oklch(0.74 0.13 33);
   --fida-btn-cast: oklch(0 0 0 / 0.45);
 }
 
 /* ============================================================
- * Sky blue palette — drives BOTH the HomePage and /docs
- * by overriding fumadocs --color-fd-* tokens.
- * Light: cool light sky-tinted paper + cool ink. Accent stays sky.
+ * Sky blue palette — drives /docs by overriding fumadocs tokens.
  * ============================================================ */
 :root {
-  --color-fd-background: oklch(0.98 0.012 235); /* sky-tinted paper */
-  --color-fd-foreground: oklch(0.27 0.03 250); /* cool ink */
+  --color-fd-background: oklch(0.98 0.012 235);
+  --color-fd-foreground: oklch(0.27 0.03 250);
   --color-fd-card: oklch(0.97 0.016 235);
   --color-fd-card-foreground: oklch(0.27 0.03 250);
   --color-fd-popover: oklch(0.99 0.01 235);
@@ -61,17 +55,17 @@
   --color-fd-muted-foreground: oklch(0.5 0.03 245);
   --color-fd-secondary: oklch(0.94 0.02 235);
   --color-fd-secondary-foreground: oklch(0.27 0.03 250);
-  --color-fd-accent: oklch(0.92 0.03 235); /* hover surface */
+  --color-fd-accent: oklch(0.92 0.03 235);
   --color-fd-accent-foreground: oklch(0.27 0.03 250);
   --color-fd-border: oklch(0.88 0.025 240);
-  --color-fd-primary: oklch(0.5 0.13 245); /* sky — links/active */
+  --color-fd-primary: oklch(0.5 0.13 245);
   --color-fd-primary-foreground: oklch(0.99 0.01 230);
   --color-fd-ring: oklch(0.6 0.13 240);
 }
 
 .dark {
-  --color-fd-background: oklch(0.21 0.025 252); /* cool deep navy-charcoal */
-  --color-fd-foreground: oklch(0.93 0.02 235); /* cool light text */
+  --color-fd-background: oklch(0.21 0.025 252);
+  --color-fd-foreground: oklch(0.93 0.02 235);
   --color-fd-card: oklch(0.245 0.028 252);
   --color-fd-card-foreground: oklch(0.93 0.02 235);
   --color-fd-popover: oklch(0.245 0.028 252);
@@ -80,10 +74,10 @@
   --color-fd-muted-foreground: oklch(0.72 0.03 240);
   --color-fd-secondary: oklch(0.28 0.028 252);
   --color-fd-secondary-foreground: oklch(0.93 0.02 235);
-  --color-fd-accent: oklch(0.31 0.03 250); /* hover surface */
+  --color-fd-accent: oklch(0.31 0.03 250);
   --color-fd-accent-foreground: oklch(0.93 0.02 235);
   --color-fd-border: oklch(0.33 0.03 250);
-  --color-fd-primary: oklch(0.8 0.12 232); /* light sky — links/active on dark */
+  --color-fd-primary: oklch(0.8 0.12 232);
   --color-fd-primary-foreground: oklch(0.2 0.03 250);
   --color-fd-ring: oklch(0.7 0.12 235);
 }
@@ -93,215 +87,368 @@ body {
   overflow-x: clip;
 }
 
-/* ============================ Landing ============================ */
+/* ---- Lenis smooth scroll ---- */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* ============================ Landing (cinematic dark) ============================ */
 .fida {
+  --bg: #06070b;
+  --bg-soft: #0a0d14;
+  --line: rgba(255, 255, 255, 0.09);
+  --fg: #eef3fa;
+  --muted: #93a1b4;
+  --faint: #5d6b7e;
+  /* Unified with /docs accent (OKLCH hue ~235) so brand blue matches across surfaces. */
+  --accent: oklch(0.75 0.13 235);
+  --accent-2: oklch(0.86 0.09 235);
+  --warm: #df8e6e;
+  --good: #8fe3a0;
+  --maxw: 1120px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
+
+  position: relative;
+  background: var(--bg);
+  color: var(--fg);
   font-family: var(--font-hum-sans), ui-sans-serif, system-ui, sans-serif;
-  color: var(--color-fd-foreground);
   -webkit-font-smoothing: antialiased;
+  overflow: clip;
+}
+body:has(.fida) {
+  background: #06070b;
+}
+/* Hide the scrollbar on the landing only — Lenis handles scrolling. */
+html:has(.fida),
+body:has(.fida) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+html:has(.fida)::-webkit-scrollbar,
+body:has(.fida)::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 .fida *,
 .fida *::before,
 .fida *::after {
   box-sizing: border-box;
 }
-
 .fida-shell {
   width: 100%;
-  max-width: var(--fida-maxw);
+  max-width: var(--maxw);
   margin-inline: auto;
-  padding-inline: 24px;
+  padding-inline: clamp(18px, 4vw, 40px);
 }
 
-/* ---- Hero ---- */
-.fida-hero {
-  position: relative;
-  padding-top: clamp(56px, 9vw, 104px);
-  padding-bottom: clamp(40px, 6vw, 72px);
-  text-align: center;
-  overflow: clip;
-}
-.fida-hero__glow {
-  position: absolute;
-  inset: -20% 0 auto 0;
-  height: 520px;
-  margin-inline: auto;
-  max-width: 760px;
-  background: radial-gradient(
-    60% 60% at 50% 30%,
-    color-mix(in oklab, var(--fida-accent) 12%, transparent),
-    transparent 70%
-  );
-  filter: blur(8px);
+/* ---- custom cursor (shown only while active) ---- */
+.fida-cursor-dot,
+.fida-cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 9999;
+  border-radius: 50%;
+  display: none;
 }
-.fida-hero__inner {
-  position: relative;
-  z-index: 1;
+html.fida-has-cursor .fida-cursor-dot,
+html.fida-has-cursor .fida-cursor-ring {
+  display: block;
+}
+.fida-cursor-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent-2);
+}
+.fida-cursor-ring {
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in oklab, var(--accent) 65%, transparent);
+  mix-blend-mode: difference;
+}
+html.fida-has-cursor,
+html.fida-has-cursor a,
+html.fida-has-cursor button {
+  cursor: none;
+}
+
+/* ---- intro loader ---- */
+.fida-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #06070b;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 22px;
+  overflow: hidden;
+}
+.fida-loader__mark {
+  font-size: clamp(2.4rem, 9vw, 5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--fg);
+}
+.fida-loader__meta {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-family: var(--font-hum-mono), ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fida-loader__meta span:first-child {
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+.fida-loader__rule {
+  width: min(420px, 70vw);
+  height: 1px;
+  background: var(--line);
+  overflow: hidden;
+}
+.fida-loader__rule > i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
 }
 
+/* ---- nav ---- */
+.fida-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px clamp(18px, 4vw, 40px);
+}
+.fida-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  text-decoration: none;
+}
+.fida-nav__brand img {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+.fida-nav__ver {
+  font-family: var(--font-hum-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 6px;
+}
+.fida-nav__links {
+  display: flex;
+  gap: 22px;
+}
+.fida-nav__links a {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  text-decoration: none;
+  opacity: 0.85;
+  transition: opacity 0.2s var(--ease);
+}
+.fida-nav__links a:hover {
+  opacity: 1;
+}
+
+/* ---- hero ---- */
+.fida-hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 120px clamp(18px, 4vw, 40px) 90px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.fida-hero__field {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(
+    80% 60% at 50% 32%,
+    color-mix(in oklab, var(--accent) 16%, var(--bg)),
+    var(--bg) 72%
+  );
+}
+.fida-hero__field::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(130% 95% at 50% 14%, transparent 55%, var(--bg) 88%);
+  pointer-events: none;
+}
+.fida-field {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.fida-hero__content {
+  position: relative;
+  width: 100%;
+  max-width: var(--maxw);
+  margin-inline: auto;
+}
 .fida-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--color-fd-muted-foreground);
-  background: var(--color-fd-card);
-  border: 1px solid var(--color-fd-border);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(6px);
   border-radius: 999px;
-  padding: 6px 14px 6px 10px;
+  padding: 7px 14px;
 }
 .fida-eyebrow svg {
-  width: 16px;
-  height: 16px;
-  color: var(--fida-accent-ink);
+  width: 15px;
+  height: 15px;
 }
-
 .fida-headline {
-  margin: 22px 0 0;
-  font-weight: 700;
-  font-style: normal;
-  line-height: 1.04;
-  letter-spacing: -0.02em;
-  font-size: clamp(2.3rem, 6.2vw, 4rem);
-  overflow-wrap: anywhere;
-  min-width: 0;
-  max-width: 16ch;
+  margin: 30px 0 0;
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-size: clamp(2.6rem, 8vw, 5.6rem);
+  max-width: 17ch;
 }
-.fida-headline__accent {
-  color: var(--fida-accent-ink);
+.fida-headline .fida-headline__accent {
+  color: var(--accent);
 }
-
+.fida-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.16em;
+  margin-bottom: -0.16em;
+}
+.fida-word > span {
+  display: inline-block;
+  will-change: transform;
+}
 .fida-sub {
-  margin: 20px 0 0;
-  max-width: 56ch;
-  font-size: clamp(1rem, 1.6vw, 1.18rem);
-  line-height: 1.6;
-  color: var(--color-fd-muted-foreground);
+  margin: 34px 0 0;
+  max-width: 50ch;
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  font-weight: 500;
+  line-height: 1.65;
+  color: #b5c2d5;
 }
-
 .fida-cta-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 30px;
+  gap: 14px;
+  align-items: center;
+  margin-top: 38px;
 }
-
+.fida-magnet {
+  display: inline-flex;
+  will-change: transform;
+}
 .fida-btn {
-  /* Hum 3D button — solid edge + colored cast, lift on hover, press on active */
-  --btn-face: var(--fida-accent-strong);
-  --btn-ink: var(--fida-on-accent);
-  --btn-edge: var(--fida-accent-press);
-  --btn-cast: var(--fida-btn-cast);
-  --btn-line: var(--fida-accent-ink);
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 0.5em;
   font: inherit;
   font-weight: 600;
   font-size: 15px;
-  letter-spacing: -0.005em;
   line-height: 1;
-  padding: 13px 24px;
-  border: 0;
+  padding: 15px 26px;
   border-radius: 999px;
-  color: var(--btn-ink);
-  background: var(--btn-face);
-  cursor: pointer;
-  white-space: nowrap;
-  user-select: none;
+  border: 1px solid transparent;
   text-decoration: none;
-  position: relative;
-  isolation: isolate;
-  box-shadow: 0 4px 0 0 var(--btn-edge), 0 6px 12px -3px var(--btn-cast);
-  transform: translateY(0);
-  transition: transform 140ms var(--fida-ease-3d),
-    box-shadow 140ms var(--fida-ease-3d), background-color 160ms ease,
-    color 160ms ease, border-color 160ms ease;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease), background-color 0.2s var(--ease),
+    color 0.2s var(--ease), border-color 0.2s var(--ease);
 }
-.fida-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 0 0 var(--btn-edge), 0 12px 22px -4px var(--btn-cast);
+.fida-btn--primary {
+  background: var(--accent);
+  color: #05070d;
 }
-.fida-btn:active {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 0 var(--btn-edge), 0 2px 6px -2px var(--btn-cast);
-  transition-duration: 70ms;
+.fida-btn--primary:hover {
+  background: var(--accent-2);
 }
-.fida-btn:focus-visible {
-  outline: 3px solid color-mix(in oklch, var(--btn-edge) 70%, var(--fida-accent));
-  outline-offset: 3px;
-}
-
-/* primary = filled (uses base 3D look) */
-
-/* ghost = outline that fills from the bottom on hover */
 .fida-btn--ghost {
-  background: transparent;
-  color: var(--btn-line);
-  border: 1.5px solid color-mix(in oklch, var(--btn-line) 42%, var(--color-fd-border));
-  box-shadow: none;
-  overflow: hidden;
-  transition: color 240ms ease, border-color 240ms ease,
-    transform 140ms var(--fida-ease-3d);
-}
-.fida-btn--ghost::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--btn-face);
-  transform: scaleY(0);
-  transform-origin: bottom;
-  transition: transform 300ms var(--fida-ease-3d);
+  color: var(--fg);
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.02);
 }
 .fida-btn--ghost:hover {
-  color: var(--btn-ink);
-  border-color: var(--btn-face);
-  transform: none;
+  color: var(--accent-2);
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--line));
 }
-.fida-btn--ghost:hover::before {
-  transform: scaleY(1);
-}
-.fida-btn--ghost:active {
-  transform: translateY(1px);
-}
-
-/* ---- install pill ---- */
 .fida-install {
-  display: flex;
+  display: inline-flex;
   align-items: stretch;
   gap: 8px;
-  margin-top: 22px;
+  margin-top: 26px;
   max-width: 100%;
-  background: var(--color-fd-card);
-  border: 1px solid var(--color-fd-border);
-  border-radius: var(--fida-radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 10px;
   padding: 6px 6px 6px 14px;
-  overflow: hidden;
 }
 .fida-install__cmd {
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 13.5px;
-  color: var(--color-fd-foreground);
-  white-space: nowrap;
-  overflow-x: auto;
   display: flex;
   align-items: center;
+  font-family: var(--font-hum-mono), ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow-x: auto;
   scrollbar-width: none;
 }
 .fida-install__cmd::-webkit-scrollbar {
   display: none;
 }
 .fida-install__cmd b {
-  color: var(--fida-accent-ink);
+  color: var(--accent-2);
   font-weight: 600;
   margin-right: 6px;
   user-select: none;
@@ -309,126 +456,200 @@ body {
 .fida-install__copy {
   flex: none;
   font: inherit;
+  font-family: var(--font-hum-mono), ui-monospace, monospace;
   font-size: 13px;
   font-weight: 600;
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
   padding: 8px 14px;
   border-radius: 6px;
-  border: 1px solid var(--color-fd-border);
-  background: var(--color-fd-background);
-  color: var(--color-fd-muted-foreground);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
   cursor: pointer;
-  transition: color var(--fida-dur) var(--fida-ease-out),
-    border-color var(--fida-dur) var(--fida-ease-out);
+  transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
 }
 .fida-install__copy:hover {
-  color: var(--fida-accent-ink);
-  border-color: var(--fida-accent);
-}
-.fida-install__copy:focus-visible {
-  outline: 2px solid var(--fida-accent);
-  outline-offset: 2px;
+  color: var(--accent-2);
+  border-color: var(--accent);
 }
 .fida-install__copy[data-copied='true'] {
-  color: var(--fida-allow);
-  border-color: var(--fida-allow);
+  color: var(--good);
+  border-color: var(--good);
+  animation: fida-pop 0.32s var(--ease);
+}
+.fida-install__copy[data-copied='true']::before {
+  content: '✓ ';
+  font-weight: 700;
+}
+@keyframes fida-pop {
+  0% {
+    transform: scale(0.92);
+  }
+  55% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.fida-scrollcue {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fida-scrollcue i {
+  width: 1px;
+  height: 42px;
+  background: linear-gradient(var(--accent), transparent);
+  transform-origin: top;
+  animation: fida-cue 1.9s var(--ease-io) infinite;
+}
+@keyframes fida-cue {
+  0% {
+    transform: scaleY(0);
+    transform-origin: top;
+  }
+  45% {
+    transform: scaleY(1);
+    transform-origin: top;
+  }
+  55% {
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+  100% {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
 }
 
-/* ---- terminal demo (no fake window chrome) ---- */
+/* ---- statement ---- */
+.fida-statement {
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: clamp(100px, 18vh, 220px) clamp(18px, 4vw, 40px);
+}
+.fida-statement__line {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.22;
+  font-size: clamp(1.6rem, 4.4vw, 3.4rem);
+}
+.fida-w {
+  display: inline-block;
+  opacity: 1; /* readable floor if the scroll-driven brighten never runs */
+}
+.fida-w:last-child {
+  color: var(--accent);
+}
+
+/* ---- pinned redaction demo ---- */
+.fida-demo-sec {
+  position: relative;
+}
+.fida-demo-pin {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding: 90px clamp(18px, 4vw, 40px);
+}
+.fida-demo-cap {
+  text-align: center;
+  max-width: 40ch;
+}
+.fida-kicker {
+  font-family: var(--font-hum-mono), ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+.fida-demo-cap h2 {
+  margin: 12px 0 0;
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
 .fida-demo {
   position: relative;
-  z-index: 1;
   width: 100%;
-  max-width: 760px;
-  margin: clamp(40px, 6vw, 64px) auto 0;
+  max-width: 720px;
   text-align: left;
-  background: var(--color-fd-card);
-  border: 1px solid var(--color-fd-border);
-  border-radius: var(--fida-radius);
-  box-shadow: 0 24px 60px -32px color-mix(in oklab, var(--fida-accent) 35%, transparent);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.02)
+  );
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.85);
   overflow: hidden;
-  will-change: transform;
+  backdrop-filter: blur(8px);
 }
 .fida-demo__bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--color-fd-border);
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
 }
-.fida-demo__label {
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--color-fd-muted-foreground);
+.fida-demo__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
 }
 .fida-demo__status {
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--fida-accent-ink);
+  color: var(--accent-2);
 }
 .fida-demo__status::before {
   content: '';
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--fida-accent);
-  box-shadow: 0 0 0 0 color-mix(in oklab, var(--fida-accent) 60%, transparent);
-  animation: fida-pulse 2.4s var(--fida-ease-in-out) infinite;
-}
-@keyframes fida-pulse {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--fida-accent) 55%, transparent);
-  }
-  70% {
-    box-shadow: 0 0 0 7px transparent;
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-}
-.fida-demo__replay {
-  margin-left: auto;
-  font: inherit;
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 11.5px;
-  color: var(--color-fd-muted-foreground);
-  background: none;
-  border: 0;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 6px;
-}
-.fida-demo__replay:hover {
-  color: var(--fida-accent-ink);
-}
-.fida-demo__replay:focus-visible {
-  outline: 2px solid var(--fida-accent);
-  outline-offset: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
 }
 .fida-demo__screen {
   position: relative;
-  padding: 20px clamp(16px, 3vw, 24px) 24px;
+  padding: 22px clamp(16px, 3vw, 26px) 26px;
   font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: clamp(12.5px, 2.6vw, 14px);
-  line-height: 1.9;
-  min-height: 188px;
+  font-size: clamp(12.5px, 2.4vw, 14.5px);
+  line-height: 1.95;
+  min-height: 210px;
   overflow: hidden;
 }
 .fida-demo__scan {
   position: absolute;
   top: 0;
   bottom: 0;
+  left: 0;
   width: 42%;
   opacity: 0;
   background: linear-gradient(
     90deg,
     transparent,
-    color-mix(in oklab, var(--fida-accent) 22%, transparent),
+    color-mix(in oklab, var(--accent) 28%, transparent),
     transparent
   );
   pointer-events: none;
@@ -438,7 +659,7 @@ body {
   word-break: break-word;
 }
 .fida-prompt {
-  color: var(--fida-accent-ink);
+  color: var(--accent-2);
   user-select: none;
 }
 .fida-caret {
@@ -447,22 +668,14 @@ body {
   height: 1.05em;
   vertical-align: text-bottom;
   margin-left: 1px;
-  background: var(--fida-accent);
-  animation: fida-blink 1s steps(2, start) infinite;
-}
-@keyframes fida-blink {
-  50% {
-    opacity: 0;
-  }
+  background: var(--accent);
 }
 .fida-line--leak {
-  color: var(--fida-deny-ink);
+  opacity: 0;
+  color: var(--warm);
 }
 .fida-line--leak[data-redacted='true'] {
-  color: var(--color-fd-muted-foreground);
-}
-.fida-line--leak .fida-secret {
-  font-weight: 600;
+  color: var(--muted);
 }
 .fida-line--blocked {
   display: inline-flex;
@@ -470,7 +683,8 @@ body {
   gap: 8px;
   margin-top: 6px;
   font-weight: 600;
-  color: var(--fida-allow);
+  color: var(--good);
+  opacity: 0;
 }
 .fida-line--blocked svg {
   width: 15px;
@@ -478,66 +692,29 @@ body {
   flex: none;
 }
 .fida-line--note {
-  color: var(--color-fd-muted-foreground);
-}
-
-/* ---- agents strip ---- */
-.fida-agents {
-  padding: clamp(28px, 5vw, 44px) 0 8px;
-  text-align: center;
-}
-.fida-agents__label {
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-fd-muted-foreground);
-  margin: 0 0 16px;
-}
-.fida-agents__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px 10px;
-}
-.fida-agents__list li {
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 13px;
-  color: var(--color-fd-foreground);
-  border: 1px solid var(--color-fd-border);
-  border-radius: 999px;
-  padding: 7px 14px;
-  transition: border-color var(--fida-dur) var(--fida-ease-out),
-    color var(--fida-dur) var(--fida-ease-out);
-}
-.fida-agents__list li:hover {
-  border-color: var(--fida-accent);
-  color: var(--fida-accent-ink);
+  color: var(--muted);
+  opacity: 0;
 }
 
 /* ---- pillars ---- */
 .fida-pillars {
-  padding: clamp(48px, 8vw, 88px) 0 clamp(16px, 3vw, 32px);
+  padding: clamp(60px, 10vh, 120px) 0 clamp(20px, 4vw, 40px);
 }
 .fida-pillars__head {
-  max-width: 30ch;
-  margin: 0 auto clamp(32px, 5vw, 52px);
+  max-width: 32ch;
+  margin: 0 auto clamp(36px, 5vw, 60px);
   text-align: center;
 }
 .fida-pillars__head h2 {
   margin: 0;
-  font-size: clamp(1.7rem, 3.6vw, 2.5rem);
-  font-weight: 700;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.1;
 }
 .fida-pillars__head p {
   margin: 14px auto 0;
   max-width: 52ch;
-  color: var(--color-fd-muted-foreground);
+  color: var(--muted);
   line-height: 1.6;
 }
 .fida-grid {
@@ -546,95 +723,153 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .fida-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--color-fd-card);
-  border: 1px solid var(--color-fd-border);
-  border-radius: var(--fida-radius);
-  padding: 24px 22px;
-  transition: transform var(--fida-dur) var(--fida-ease-out),
-    border-color var(--fida-dur) var(--fida-ease-out);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 26px 24px;
+  --spot: 0;
+  will-change: transform;
+  transition: border-color 0.2s var(--ease), box-shadow 0.3s var(--ease);
+}
+.fida-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--spot);
+  background: radial-gradient(
+    240px 240px at var(--mx, 50%) var(--my, 50%),
+    color-mix(in oklab, var(--accent) 22%, transparent),
+    transparent 60%
+  );
+  transition: opacity 0.24s var(--ease);
+}
+.fida-card > * {
+  position: relative;
+  z-index: 1;
 }
 .fida-card:hover {
-  transform: translateY(-3px);
-  border-color: color-mix(in oklab, var(--fida-accent) 55%, var(--color-fd-border));
+  border-color: color-mix(in oklab, var(--accent) 50%, var(--line));
+  box-shadow: 0 24px 50px -30px rgba(0, 0, 0, 0.8);
 }
 .fida-card__tag {
-  display: inline-block;
   font-family: var(--font-hum-mono), ui-monospace, monospace;
   font-size: 12px;
   font-weight: 600;
-  color: var(--fida-accent-ink);
-  margin-bottom: 12px;
+  color: var(--accent-2);
+  margin-bottom: 14px;
 }
 .fida-card h3 {
-  margin: 0 0 8px;
-  font-size: 1.18rem;
-  font-weight: 700;
+  margin: 0 0 10px;
+  font-size: 1.2rem;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 .fida-card p {
   margin: 0;
+  padding-bottom: 24px;
   font-size: 14.5px;
   line-height: 1.6;
-  color: var(--color-fd-muted-foreground);
+  color: var(--muted);
 }
 .fida-card code {
   margin-top: auto;
   display: block;
   font-family: var(--font-hum-mono), ui-monospace, monospace;
   font-size: 12.5px;
-  color: var(--color-fd-foreground);
-  background: var(--color-fd-background);
-  border: 1px solid var(--color-fd-border);
+  color: var(--accent-2);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 9px 12px;
-  overflow-x: auto;
+  padding: 10px 12px;
   white-space: nowrap;
+  overflow-x: auto;
   scrollbar-width: none;
 }
 .fida-card code::-webkit-scrollbar {
   display: none;
 }
 
+/* ---- agents marquee ---- */
+.fida-marquee {
+  padding: clamp(40px, 7vh, 90px) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.fida-marquee__track {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+}
+.fida-marquee__group {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fida-marquee__group li {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(28px, 5vw, 64px);
+  padding-right: clamp(28px, 5vw, 64px);
+  font-size: clamp(1.6rem, 4vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.fida-marquee__sep {
+  color: var(--accent);
+  font-size: 0.5em;
+}
+
 /* ---- final CTA ---- */
 .fida-final {
-  margin: clamp(48px, 8vw, 96px) auto;
-  text-align: center;
+  margin: clamp(60px, 10vh, 140px) auto;
 }
 .fida-final__panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--color-fd-border);
-  border-radius: 22px;
-  padding: clamp(40px, 7vw, 72px) 24px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--fida-accent) 9%, var(--color-fd-card)),
-    var(--color-fd-card)
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: clamp(48px, 8vw, 90px) clamp(24px, 5vw, 48px);
+  text-align: center;
+  background: radial-gradient(
+    120% 140% at 50% 0%,
+    color-mix(in oklab, var(--accent) 14%, var(--bg-soft)),
+    var(--bg-soft)
   );
 }
 .fida-final__panel h2 {
   margin: 0;
-  font-size: clamp(1.9rem, 4.6vw, 3rem);
-  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.08;
+  line-height: 1.05;
 }
 .fida-final__panel p {
-  margin: 16px auto 0;
+  margin: 18px auto 0;
   max-width: 48ch;
-  color: var(--color-fd-muted-foreground);
+  color: var(--muted);
   line-height: 1.6;
 }
 .fida-final .fida-cta-row {
-  margin-top: 28px;
+  justify-content: center;
+  margin-top: 30px;
 }
 
-/* ---- footer line ---- */
+/* ---- footer ---- */
 .fida-foot {
-  border-top: 1px solid var(--color-fd-border);
-  padding: 26px 0 48px;
+  border-top: 1px solid var(--line);
+  padding: 30px 0 60px;
 }
 .fida-foot__row {
   display: flex;
@@ -644,30 +879,23 @@ body {
   gap: 12px;
 }
 .fida-foot__name {
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 .fida-foot__name span {
-  color: var(--fida-accent-ink);
+  color: var(--muted);
 }
 .fida-foot__links {
   display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
+  gap: 20px;
 }
 .fida-foot__links a {
   font-size: 14px;
-  color: var(--color-fd-muted-foreground);
+  color: var(--muted);
   text-decoration: none;
-  transition: color var(--fida-dur) var(--fida-ease-out);
+  transition: color 0.2s var(--ease);
 }
 .fida-foot__links a:hover {
-  color: var(--fida-accent-ink);
-}
-.fida-foot__links a:focus-visible {
-  outline: 2px solid var(--fida-accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+  color: var(--accent-2);
 }
 
 /* ---- responsive ---- */
@@ -676,12 +904,12 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@media (max-width: 520px) {
-  .fida-shell {
-    padding-inline: 18px;
-  }
-  .fida-btn {
+@media (max-width: 560px) {
+  .fida-cta-row .fida-magnet {
     flex: 1 1 auto;
+  }
+  .fida-cta-row .fida-magnet .fida-btn {
+    width: 100%;
     justify-content: center;
   }
   .fida-foot__row {
@@ -690,25 +918,23 @@ body {
   }
 }
 
-/* ---- reduced motion ---- */
-@media (prefers-reduced-motion: reduce) {
-  .fida-demo__status::before,
-  .fida-caret {
-    animation: none;
-  }
+/* ---- keyboard focus (custom cursor hides the pointer, so this matters) ---- */
+.fida a:focus-visible,
+.fida button:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 3px;
 }
 
-/* ---- OverlayScrollbars · Greek (Aegean) theme, HomePage only ---- */
-.os-theme-fida {
-  --os-size: 11px;
-  --os-padding-perpendicular: 2px;
-  --os-padding-axis: 3px;
-  --os-track-bg: transparent;
-  --os-track-bg-hover: color-mix(in oklab, var(--fida-accent) 8%, transparent);
-  --os-track-bg-active: color-mix(in oklab, var(--fida-accent) 10%, transparent);
-  --os-handle-border-radius: 999px;
-  --os-handle-bg: color-mix(in oklab, var(--fida-accent) 42%, transparent);
-  --os-handle-bg-hover: color-mix(in oklab, var(--fida-accent) 66%, transparent);
-  --os-handle-bg-active: var(--fida-accent);
-  --os-handle-min-size: 40px;
+/* ---- reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .fida-caret,
+  .fida-demo__status::before,
+  .fida-scrollcue i,
+  .fida-install__copy[data-copied='true'] {
+    animation: none;
+  }
+  .fida-cursor-dot,
+  .fida-cursor-ring {
+    display: none !important;
+  }
 }

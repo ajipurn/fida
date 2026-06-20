@@ -6,6 +6,8 @@ import { Landing } from '@/components/landing';
 
 const homeOptions: BaseLayoutProps = {
   ...baseOptions(),
+  // Landing ships its own minimal nav; hide the fumadocs navbar for a full-bleed hero.
+  nav: { enabled: false },
 };
 
 export default function HomePage() {

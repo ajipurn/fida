@@ -1,16 +1,32 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { OverlayScrollbars } from 'overlayscrollbars';
-import 'overlayscrollbars/overlayscrollbars.css';
+import Lenis from 'lenis';
+import fidaLogo from '@assets/fida-logo.png';
+import packageJson from '../package.json';
+import { SecretField } from './secret-field';
+import { Cursor } from './cursor';
+import { Loader } from './loader';
+import Link from 'next/link';
 
 const INSTALL_CMD =
   'curl -fsSL https://raw.githubusercontent.com/ajipurn/fida/main/install.sh | sh';
 const TYPED = 'fida_read .env';
 const DEMO_SECRET = 'synthetic-credential-value';
-const REDACTED = '\u2022'.repeat(20);
+const REDACTED = '•'.repeat(20);
+
+// Hero headline, split into words for clip-mask reveals.
+const HEADLINE = ['Let', 'agents', 'read', 'your', 'code,'];
+const HEADLINE_ACCENT = ['not', 'your', 'secrets.'];
+
+// Scroll statement, brightened word-by-word as it crosses the viewport.
+const STATEMENT =
+  'Coding agents read everything you point them at — including the .env you forgot was there.'.split(
+    ' '
+  );
 
 const AGENTS = [
   'Codex',
@@ -22,7 +38,29 @@ const AGENTS = [
   'Antigravity',
 ];
 
-// Run before paint on the client, fall back to useEffect on the server.
+const PILLARS = [
+  {
+    tag: '01 / protect',
+    title: 'Install agent protection',
+    body: 'Set up supported integrations and prepare a safe redacted view for model-bound output.',
+    cmd: 'fida',
+  },
+  {
+    tag: '02 / verify',
+    title: 'Know your coverage',
+    body: 'See enforced, best-effort, or incomplete protection alongside the latest synthetic-secret self-test.',
+    cmd: 'fida status',
+  },
+  {
+    tag: '03 / scan',
+    title: 'Find raw-secret risk',
+    body: 'Scan tracked and sensitive ignored files, then distinguish discovered secrets from raw model exposure.',
+    cmd: 'fida scan',
+  },
+];
+
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
@@ -30,13 +68,13 @@ function ShieldIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
-        d="M12 2.5 4.5 5.5v6c0 4.4 3.1 7.6 7.5 9 4.4-1.4 7.5-4.6 7.5-9v-6L12 2.5Z"
+        d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinejoin="round"
       />
       <path
-        d="m8.8 12 2.2 2.2 4.2-4.4"
+        d="M9 12l2 2 4-4"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"
@@ -48,196 +86,284 @@ function ShieldIcon() {
 
 export function Landing() {
   const root = useRef<HTMLDivElement>(null);
-  const demoRef = useRef<gsap.core.Timeline | null>(null);
+  const exposureRef = useRef(0);
+  const introRef = useRef<gsap.core.Timeline | null>(null);
+  const lenisRef = useRef<Lenis | null>(null);
   const [copied, setCopied] = useState(false);
+  const [started, setStarted] = useState(false);
+
+  const onLoaderDone = useCallback(() => setStarted(true), []);
+
+  // Lenis smooth scroll, driven by GSAP's ticker and synced to ScrollTrigger.
+  // Starts stopped; the loader hand-off releases it.
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    gsap.registerPlugin(ScrollTrigger);
+    const lenis = new Lenis({ lerp: 0.1 });
+    lenis.stop();
+    lenis.on('scroll', ScrollTrigger.update);
+    const tick = (time: number) => lenis.raf(time * 1000);
+    gsap.ticker.add(tick);
+    gsap.ticker.lagSmoothing(0);
+    lenisRef.current = lenis;
+    return () => {
+      gsap.ticker.remove(tick);
+      lenis.destroy();
+      lenisRef.current = null;
+    };
+  }, []);
+
+  // Lock the page while the loader runs.
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
+  // Release scroll + play the hero entrance once the loader lifts.
+  useEffect(() => {
+    if (!started) return;
+    document.body.style.overflow = '';
+    lenisRef.current?.start();
+    introRef.current?.play();
+    ScrollTrigger.refresh();
+  }, [started]);
 
   useIsomorphicLayoutEffect(() => {
     const el = root.current;
     if (!el) return;
+    gsap.registerPlugin(ScrollTrigger);
 
     const q = <T extends Element>(sel: string) => el.querySelector<T>(sel);
     const typeEl = q<HTMLElement>('[data-type]');
     const secretEl = q<HTMLElement>('[data-secret]');
+    const caret = q<HTMLElement>('[data-caret]');
     const scan = q<HTMLElement>('[data-scan]');
     const leak = q<HTMLElement>('[data-leak]');
     const blocked = q<HTMLElement>('[data-blocked]');
     const note = q<HTMLElement>('[data-note]');
-    const reveals = Array.from(el.querySelectorAll<HTMLElement>('[data-reveal]'));
 
-    const setFinalDemo = () => {
-      if (typeEl) typeEl.textContent = TYPED;
-      if (secretEl) secretEl.textContent = REDACTED;
-      leak?.setAttribute('data-redacted', 'true');
-      gsap.set([leak, blocked, note], { autoAlpha: 1, y: 0 });
-      gsap.set(scan, { autoAlpha: 0 });
+    // Deterministic demo state for a scrub position p ∈ [0,1] — read→type→
+    // leak→scan→redact→safe. Pure function of p so it scrubs both ways.
+    const renderDemo = (p: number) => {
+      const tp = clamp01(p / 0.3);
+      if (typeEl) typeEl.textContent = TYPED.slice(0, Math.round(tp * TYPED.length));
+      if (caret) caret.style.opacity = p < 0.34 ? '1' : '0';
+
+      const redacted = p >= 0.6;
+      const showSecret = p >= 0.3;
+      if (secretEl) secretEl.textContent = redacted ? REDACTED : showSecret ? DEMO_SECRET : '';
+
+      if (leak) {
+        const lp = clamp01((p - 0.3) / 0.08);
+        leak.style.opacity = String(lp);
+        leak.style.transform = `translateY(${(1 - lp) * 6}px)`;
+        leak.setAttribute('data-redacted', redacted ? 'true' : 'false');
+      }
+      if (scan) {
+        const sp = clamp01((p - 0.45) / 0.27);
+        scan.style.opacity = sp > 0 && sp < 1 ? '1' : '0';
+        scan.style.transform = `translateX(${-140 + sp * 460}%)`;
+      }
+      if (blocked) {
+        const bp = clamp01((p - 0.72) / 0.1);
+        blocked.style.opacity = String(bp);
+        blocked.style.transform = `translateY(${(1 - bp) * 8}px)`;
+      }
+      if (note) {
+        const np = clamp01((p - 0.82) / 0.1);
+        note.style.opacity = String(np);
+        note.style.transform = `translateY(${(1 - np) * 8}px)`;
+      }
+      exposureRef.current = p >= 0.3 && p < 0.6 ? 1 : 0;
     };
-
-    const buildDemo = () => {
-      const tl = gsap.timeline({ paused: true });
-      const counter = { i: 0 };
-      tl.set([leak, blocked, note], { autoAlpha: 0, y: 4 })
-        .set(scan, { autoAlpha: 0, xPercent: -140 })
-        .call(() => {
-          if (typeEl) typeEl.textContent = '';
-          if (secretEl) secretEl.textContent = DEMO_SECRET;
-          leak?.setAttribute('data-redacted', 'false');
-          counter.i = 0;
-        })
-        .to(counter, {
-          i: TYPED.length,
-          duration: 0.7,
-          ease: 'none',
-          onUpdate: () => {
-            if (typeEl) typeEl.textContent = TYPED.slice(0, Math.round(counter.i));
-          },
-        })
-        .to(leak, { autoAlpha: 1, y: 0, duration: 0.25, ease: 'power2.out' }, '+=0.35')
-        // scanning sweep crosses the screen, redacting the secret mid-pass
-        .to(scan, { autoAlpha: 1, duration: 0.12 }, '+=0.25')
-        .to(scan, { xPercent: 320, duration: 0.75, ease: 'power2.inOut' }, '<')
-        .call(
-          () => {
-            if (secretEl) secretEl.textContent = REDACTED;
-            leak?.setAttribute('data-redacted', 'true');
-          },
-          undefined,
-          '<0.32'
-        )
-        .to(scan, { autoAlpha: 0, duration: 0.18 }, '>-0.12')
-        .to(blocked, { autoAlpha: 1, y: 0, duration: 0.3, ease: 'power3.out' }, '-=0.05')
-        .to(note, { autoAlpha: 1, y: 0, duration: 0.3, ease: 'power2.out' }, '-=0.12');
-      return tl;
-    };
-
-    gsap.registerPlugin(ScrollTrigger);
-
-    const agents = q<HTMLElement>('[data-agents]');
-    const heroGlow = q<HTMLElement>('.fida-hero__glow');
-    const demoCard = q<HTMLElement>('[data-demo]');
 
     const mm = gsap.matchMedia();
-
     mm.add(
       {
         reduce: '(prefers-reduced-motion: reduce)',
-        full: '(prefers-reduced-motion: no-preference)',
+        ok: '(prefers-reduced-motion: no-preference)',
         pointer: '(hover: hover) and (pointer: fine)',
       },
       (ctx) => {
         const { reduce, pointer } = ctx.conditions as {
           reduce: boolean;
-          full: boolean;
+          ok: boolean;
           pointer: boolean;
         };
 
+        // ---- reduced motion: show everything settled, no scroll machinery ----
         if (reduce) {
-          setFinalDemo();
-          gsap.set(reveals, { autoAlpha: 1, y: 0 });
+          renderDemo(1);
+          gsap.set(
+            [
+              '.fida-nav',
+              '.fida-eyebrow',
+              '.fida-headline .fida-word > span',
+              '.fida-sub',
+              '.fida-cta-row',
+              '.fida-install',
+              '.fida-scrollcue',
+              '[data-reveal]',
+              '.fida-statement .fida-w',
+            ],
+            { autoAlpha: 1, y: 0, yPercent: 0 }
+          );
           return;
         }
 
-        // hide demo lines + scroll-reveal targets up front
-        gsap.set([leak, blocked, note, scan], { autoAlpha: 0 });
-        gsap.set(reveals, { autoAlpha: 0, y: 28 });
+        renderDemo(0);
 
-        const demoTl = buildDemo();
-        demoRef.current = demoTl;
+        // ---- hero entrance (paused; released by the loader hand-off) ----
+        const intro = gsap.timeline({ paused: true, defaults: { ease: 'power3.out' } });
+        intro
+          .from('.fida-field', { autoAlpha: 0, duration: 1.4, ease: 'power2.out' }, 0)
+          .from('.fida-nav', { y: -24, autoAlpha: 0, duration: 0.7 }, 0.1)
+          .from('.fida-eyebrow', { y: 22, autoAlpha: 0, duration: 0.6 }, 0.2)
+          .from(
+            '.fida-headline .fida-word > span',
+            { yPercent: 118, duration: 0.95, stagger: 0.055, ease: 'power4.out' },
+            0.3
+          )
+          .from('.fida-sub', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.55')
+          .from('.fida-cta-row', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.45')
+          .from('.fida-install', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.5')
+          .from('.fida-scrollcue', { autoAlpha: 0, duration: 0.6 }, '-=0.3');
+        introRef.current = intro;
+        if (started) intro.play();
 
-        // hero entrance, then kick off the redaction demo
-        const entrance = gsap.timeline({ defaults: { ease: 'power3.out' } });
-        entrance
-          .from('[data-hero-stagger] > *', {
-            y: 26,
-            autoAlpha: 0,
-            duration: 0.6,
-            stagger: 0.08,
-          })
-          .from('[data-demo]', { y: 32, autoAlpha: 0, duration: 0.7 }, '-=0.3')
-          .add(() => demoTl.restart(), '-=0.05');
+        // ---- hero parallax — content drifts up as you leave ----
+        gsap.to('.fida-hero__content', {
+          yPercent: -14,
+          autoAlpha: 0.15,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: '.fida-hero',
+            start: 'top top',
+            end: 'bottom top',
+            scrub: true,
+          },
+        });
 
-        // coordinated, staggered scroll-reveal (ScrollTrigger.batch > IntersectionObserver)
-        ScrollTrigger.batch(reveals, {
+        // ---- statement: brighten word-by-word ----
+        gsap.fromTo(
+          '.fida-statement .fida-w',
+          { opacity: 0.12 },
+          {
+            opacity: 1,
+            ease: 'none',
+            stagger: 0.4,
+            scrollTrigger: {
+              trigger: '.fida-statement',
+              start: 'top 72%',
+              end: 'bottom 62%',
+              scrub: true,
+            },
+          }
+        );
+
+        // ---- pinned, scroll-scrubbed redaction demo ----
+        ScrollTrigger.create({
+          trigger: '[data-demo-sec]',
+          start: 'top top',
+          end: '+=170%',
+          pin: '[data-demo-pin]',
+          scrub: true,
+          onUpdate: (self) => renderDemo(self.progress),
+        });
+
+        // ---- pillar reveal ----
+        gsap.set('[data-reveal]', { autoAlpha: 0, y: 30 });
+        ScrollTrigger.batch('[data-reveal]', {
           start: 'top 85%',
           once: true,
           onEnter: (batch) =>
             gsap.to(batch, {
               autoAlpha: 1,
               y: 0,
-              duration: 0.6,
+              duration: 0.7,
               ease: 'power3.out',
               stagger: 0.12,
               overwrite: true,
             }),
         });
 
-        // agents label + chips cascade in
-        if (agents) {
-          gsap.from(
-            agents.querySelectorAll('.fida-agents__label, .fida-agents__list li'),
-            {
-              autoAlpha: 0,
-              y: 16,
-              duration: 0.5,
-              ease: 'power3.out',
-              stagger: 0.05,
-              scrollTrigger: { trigger: agents, start: 'top 82%', once: true },
-            }
-          );
-        }
+        // ---- agent marquee (two copies → seamless -50% loop) ----
+        gsap.to('.fida-marquee__track', {
+          xPercent: -50,
+          duration: 22,
+          ease: 'none',
+          repeat: -1,
+        });
 
-        // subtle parallax depth on the hero glow
-        if (heroGlow) {
-          gsap.to(heroGlow, {
-            yPercent: 24,
-            ease: 'none',
-            scrollTrigger: {
-              trigger: '.fida-hero',
-              start: 'top top',
-              end: 'bottom top',
-              scrub: true,
-            },
+        // ---- pointer micro-interactions ----
+        if (pointer) {
+          const cleanups: Array<() => void> = [];
+
+          el.querySelectorAll<HTMLElement>('.fida-magnet').forEach((mag) => {
+            const mx = gsap.quickTo(mag, 'x', { duration: 0.5, ease: 'power3' });
+            const my = gsap.quickTo(mag, 'y', { duration: 0.5, ease: 'power3' });
+            const onMove = (e: PointerEvent) => {
+              const r = mag.getBoundingClientRect();
+              mx((e.clientX - (r.left + r.width / 2)) * 0.3);
+              my((e.clientY - (r.top + r.height / 2)) * 0.4);
+            };
+            const onLeave = () => {
+              mx(0);
+              my(0);
+            };
+            mag.addEventListener('pointermove', onMove);
+            mag.addEventListener('pointerleave', onLeave);
+            cleanups.push(() => {
+              mag.removeEventListener('pointermove', onMove);
+              mag.removeEventListener('pointerleave', onLeave);
+            });
           });
-        }
 
-        // interactive 3D tilt on the demo card — fine-pointer devices only, quickTo for 60fps
-        if (pointer && demoCard) {
-          gsap.set(demoCard, { transformPerspective: 900, transformOrigin: 'center' });
-          const tiltX = gsap.utils.clamp(-5, 5);
-          const tiltY = gsap.utils.clamp(-5, 5);
-          const rotX = gsap.quickTo(demoCard, 'rotationX', { duration: 0.5, ease: 'power3' });
-          const rotY = gsap.quickTo(demoCard, 'rotationY', { duration: 0.5, ease: 'power3' });
-          const onMove = (e: PointerEvent) => {
-            const r = demoCard.getBoundingClientRect();
-            rotY(tiltX(gsap.utils.mapRange(0, r.width, -5, 5, e.clientX - r.left)));
-            rotX(tiltY(gsap.utils.mapRange(0, r.height, 5, -5, e.clientY - r.top)));
-          };
-          const onLeave = () => {
-            rotX(0);
-            rotY(0);
-          };
-          demoCard.addEventListener('pointermove', onMove);
-          demoCard.addEventListener('pointerleave', onLeave);
-          return () => {
-            demoCard.removeEventListener('pointermove', onMove);
-            demoCard.removeEventListener('pointerleave', onLeave);
-          };
+          el.querySelectorAll<HTMLElement>('.fida-card').forEach((card) => {
+            gsap.set(card, { transformPerspective: 800, transformOrigin: 'center' });
+            const rotX = gsap.quickTo(card, 'rotationX', { duration: 0.5, ease: 'power3' });
+            const rotY = gsap.quickTo(card, 'rotationY', { duration: 0.5, ease: 'power3' });
+            const ly = gsap.quickTo(card, 'y', { duration: 0.5, ease: 'power3' });
+            const onEnter = () => {
+              card.style.setProperty('--spot', '1');
+              ly(-6);
+            };
+            const onMove = (e: PointerEvent) => {
+              const r = card.getBoundingClientRect();
+              const px = (e.clientX - r.left) / r.width;
+              const py = (e.clientY - r.top) / r.height;
+              card.style.setProperty('--mx', `${px * 100}%`);
+              card.style.setProperty('--my', `${py * 100}%`);
+              rotY(gsap.utils.clamp(-4, 4, (px - 0.5) * 8));
+              rotX(gsap.utils.clamp(-4, 4, (0.5 - py) * 8));
+            };
+            const onLeave = () => {
+              card.style.setProperty('--spot', '0');
+              rotX(0);
+              rotY(0);
+              ly(0);
+            };
+            card.addEventListener('pointerenter', onEnter);
+            card.addEventListener('pointermove', onMove);
+            card.addEventListener('pointerleave', onLeave);
+            cleanups.push(() => {
+              card.removeEventListener('pointerenter', onEnter);
+              card.removeEventListener('pointermove', onMove);
+              card.removeEventListener('pointerleave', onLeave);
+            });
+          });
+
+          return () => cleanups.forEach((fn) => fn());
         }
       },
       el
     );
 
     return () => mm.revert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Custom overlay scrollbars — page-level, only while the HomePage is mounted.
-  useEffect(() => {
-    const osInstance = OverlayScrollbars(document.body, {
-      scrollbars: { theme: 'os-theme-fida', autoHide: 'leave', autoHideDelay: 600 },
-    });
-    return () => osInstance.destroy();
-  }, []);
-
-  const replay = () => demoRef.current?.restart();
 
   const copyInstall = async () => {
     try {
@@ -245,44 +371,82 @@ export function Landing() {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      // clipboard blocked (insecure context / denied) — leave the command visible to copy by hand
+      // clipboard blocked — leave the command visible to copy by hand
     }
   };
 
   return (
     <div className="fida" ref={root}>
+      <Loader onDone={onLoaderDone} />
+      <Cursor />
+
+      {/* ---------------- Nav ---------------- */}
+      <nav className="fida-nav">
+        <a className="fida-nav__brand" href="/" data-cursor>
+          <Image src={fidaLogo} alt="Fida" width={24} height={24} priority className='invert brightness-0' />
+          <span>Fida</span>
+          <span className="fida-nav__ver">v{packageJson.version}</span>
+        </a>
+        <div className="fida-nav__links">
+          <a href="/docs" data-cursor>
+            Docs
+          </a>
+          <a href="https://github.com/ajipurn/fida" target="_blank" rel="noreferrer" data-cursor>
+            GitHub
+          </a>
+        </div>
+      </nav>
+
       {/* ---------------- Hero ---------------- */}
       <section className="fida-hero">
-        <div className="fida-hero__glow" aria-hidden="true" />
-        <div className="fida-shell fida-hero__inner" data-hero-stagger>
+        <div className="fida-hero__field">
+          <SecretField exposureRef={exposureRef} />
+        </div>
+        <div className="fida-hero__content">
           <span className="fida-eyebrow">
             <ShieldIcon />
-            Local-first &middot; agent-agnostic
+            Local-first · agent-agnostic
           </span>
 
           <h1 className="fida-headline">
-            Let agents read your code,{' '}
-            <span className="fida-headline__accent">not your secrets.</span>
+            {HEADLINE.flatMap((word, i) => [
+              <span className="fida-word" key={`h${i}`}>
+                <span>{word}</span>
+              </span>,
+              ' ',
+            ])}
+            <br />
+            {HEADLINE_ACCENT.flatMap((word, i) => [
+              <span className="fida-word fida-headline__accent" key={`a${i}`}>
+                <span>{word}</span>
+              </span>,
+              ' ',
+            ])}
           </h1>
 
           <p className="fida-sub">
-            Fida installs local protection for AI coding agents, verifies it with a
-            synthetic credential, and scans repository risk. Secret values are redacted
-            before reaching the model.
+            Fida installs local protection for AI coding agents, verifies it with a synthetic
+            credential, and scans repository risk. Secret values are redacted before reaching
+            the model.
           </p>
 
           <div className="fida-cta-row">
-            <a className="fida-btn fida-btn--primary" href="/docs">
-              Get started
-            </a>
-            <a
-              className="fida-btn fida-btn--ghost"
-              href="https://github.com/ajipurn/fida"
-              target="_blank"
-              rel="noreferrer"
-            >
-              View on GitHub
-            </a>
+            <span className="fida-magnet">
+              <a className="fida-btn fida-btn--primary" href="/docs" data-cursor>
+                Get started
+              </a>
+            </span>
+            <span className="fida-magnet">
+              <a
+                className="fida-btn fida-btn--ghost"
+                href="https://github.com/ajipurn/fida"
+                target="_blank"
+                rel="noreferrer"
+                data-cursor
+              >
+                View on GitHub
+              </a>
+            </span>
           </div>
 
           <div className="fida-install">
@@ -295,6 +459,7 @@ export function Landing() {
               className="fida-install__copy"
               data-copied={copied}
               onClick={copyInstall}
+              data-cursor
               aria-label={copied ? 'Install command copied' : 'Copy install command'}
             >
               {copied ? 'Copied' : 'Copy'}
@@ -302,55 +467,62 @@ export function Landing() {
           </div>
         </div>
 
-        {/* live redaction demo — content surface, no fake window chrome */}
-        <div className="fida-shell">
+        <div className="fida-scrollcue" aria-hidden="true">
+          <span>scroll</span>
+          <i />
+        </div>
+      </section>
+
+      {/* ---------------- Statement ---------------- */}
+      <section className="fida-statement">
+        <p className="fida-statement__line">
+          {STATEMENT.flatMap((word, i) => [
+            <span className="fida-w" key={i}>
+              {word}
+            </span>,
+            ' ',
+          ])}
+        </p>
+      </section>
+
+      {/* ---------------- Pinned redaction demo ---------------- */}
+      <section className="fida-demo-sec" data-demo-sec>
+        <div className="fida-demo-pin" data-demo-pin>
+          <div className="fida-demo-cap">
+            <span className="fida-kicker">live · redaction</span>
+            <h2>Read the file. Not the secret.</h2>
+          </div>
           <div
             className="fida-demo"
             data-demo
             role="img"
-            aria-label="An AI agent reads .env through Fida; the file remains readable while the synthetic credential is redacted before it reaches the model."
+            aria-label="An AI agent reads .env through Fida; the file stays readable while the synthetic credential is redacted before it reaches the model."
           >
             <div className="fida-demo__bar">
-              {/* <span className="fida-demo__label">fida gateway</span> */}
+              <span className="fida-demo__dot" />
+              <span className="fida-demo__dot" />
+              <span className="fida-demo__dot" />
               <span className="fida-demo__status">protected</span>
-              <button
-                type="button"
-                className="fida-demo__replay"
-                onClick={replay}
-                aria-label="Replay the demo"
-              >
-                replay &#8635;
-              </button>
             </div>
-            <div className="fida-demo__screen" data-demo-screen aria-hidden="true">
+            <div className="fida-demo__screen">
               <span className="fida-demo__scan" data-scan />
               <div className="fida-line fida-line--cmd">
                 <span className="fida-prompt">$</span> <span data-type />
                 <span className="fida-caret" data-caret />
               </div>
               <div className="fida-line fida-line--leak" data-leak data-redacted="false">
-                DEMO_CREDENTIAL=<span className="fida-secret" data-secret>{DEMO_SECRET}</span>
+                DEMO_CREDENTIAL=<span data-secret />
               </div>
               <div className="fida-line fida-line--blocked" data-blocked>
                 <ShieldIcon />
-                SAFE VIEW &mdash; detected value redacted
+                SAFE VIEW — detected value redacted
               </div>
               <div className="fida-line fida-line--note" data-note>
-                useful structure returned &middot; the secret never reached the model
+                useful structure returned · the secret never reached the model
               </div>
             </div>
           </div>
         </div>
-      </section>
-
-      {/* ---------------- Agents strip ---------------- */}
-      <section className="fida-shell fida-agents" data-agents>
-        <p className="fida-agents__label">Supported agent integrations</p>
-        <ul className="fida-agents__list">
-          {AGENTS.map((name) => (
-            <li key={name}>{name}</li>
-          ))}
-        </ul>
       </section>
 
       {/* ---------------- Pillars ---------------- */}
@@ -358,38 +530,35 @@ export function Landing() {
         <div className="fida-pillars__head" data-reveal>
           <h2>Install. Verify. Scan.</h2>
           <p>
-            Install protection for detected agents, verify the real read and shell paths,
-            then see whether raw secret values can still reach a model.
+            Install protection for detected agents, verify the real read and shell paths, then
+            see whether raw secret values can still reach a model.
           </p>
         </div>
         <div className="fida-grid">
-          <article className="fida-card" data-reveal>
-            <span className="fida-card__tag">01 / protect</span>
-            <h3>Install agent protection</h3>
-            <p>
-              Set up supported integrations and prepare a safe redacted view for model-bound
-              output.
-            </p>
-            <code>fida</code>
-          </article>
-          <article className="fida-card" data-reveal>
-            <span className="fida-card__tag">02 / verify</span>
-            <h3>Know your coverage</h3>
-            <p>
-              See enforced, best-effort, or incomplete protection alongside the latest
-              synthetic-secret self-test.
-            </p>
-            <code>fida status</code>
-          </article>
-          <article className="fida-card" data-reveal>
-            <span className="fida-card__tag">03 / scan</span>
-            <h3>Find raw-secret risk</h3>
-            <p>
-              Scan tracked and sensitive ignored files, then distinguish discovered secrets
-              from raw model exposure.
-            </p>
-            <code>fida scan</code>
-          </article>
+          {PILLARS.map((p) => (
+            <article className="fida-card" data-reveal key={p.tag}>
+              <span className="fida-card__tag">{p.tag}</span>
+              <h3>{p.title}</h3>
+              <p>{p.body}</p>
+              <code>{p.cmd}</code>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* ---------------- Agents marquee ---------------- */}
+      <section className="fida-marquee" aria-label="Supported agent integrations">
+        <div className="fida-marquee__track">
+          {[0, 1].map((dup) => (
+            <ul className="fida-marquee__group" key={dup} aria-hidden={dup === 1}>
+              {AGENTS.map((name) => (
+                <li key={name}>
+                  {name}
+                  <span className="fida-marquee__sep">✳</span>
+                </li>
+              ))}
+            </ul>
+          ))}
         </div>
       </section>
 
@@ -398,43 +567,42 @@ export function Landing() {
         <div className="fida-final__panel" data-reveal>
           <h2>Protection you can verify.</h2>
           <p>
-            One command installs supported integrations, runs a synthetic-secret self-test,
-            and scans your repository. Fida reports enforced and best-effort coverage
-            honestly.
+            One command installs supported integrations, runs a synthetic-secret self-test, and
+            scans your repository. Fida reports enforced and best-effort coverage honestly.
           </p>
           <div className="fida-cta-row">
-            <a className="fida-btn fida-btn--primary" href="/docs">
-              Read the docs
-            </a>
-            <a
-              className="fida-btn fida-btn--ghost"
-              href="https://github.com/ajipurn/fida"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Star on GitHub
-            </a>
+            <span className="fida-magnet">
+              <Link className="fida-btn fida-btn--primary" href="/docs" data-cursor>
+                Read the docs
+              </Link>
+            </span>
+            <span className="fida-magnet">
+              <a
+                className="fida-btn fida-btn--ghost"
+                href="https://github.com/ajipurn/fida"
+                target="_blank"
+                rel="noreferrer"
+                data-cursor
+              >
+                Star on GitHub
+              </a>
+            </span>
           </div>
         </div>
       </section>
 
-      {/* ---------------- Footer line ---------------- */}
+      {/* ---------------- Footer ---------------- */}
       <footer className="fida-shell fida-foot">
         <div className="fida-foot__row">
           <span className="fida-foot__name">
-            Fida <span>&mdash; secrets stay secret.</span>
+            Fida <span>— secrets stay secret.</span>
           </span>
           <nav className="fida-foot__links">
-            <a href="/docs">Docs</a>
-            <a href="https://github.com/ajipurn/fida" target="_blank" rel="noreferrer">
-              GitHub
+            <a href="/docs" data-cursor>
+              Docs
             </a>
-            <a
-              href="https://github.com/ajipurn/fida/blob/main/SECURITY.md"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Security
+            <a href="https://github.com/ajipurn/fida" target="_blank" rel="noreferrer" data-cursor>
+              GitHub
             </a>
           </nav>
         </div>

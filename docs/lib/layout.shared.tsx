@@ -13,7 +13,7 @@ export function baseOptions(): BaseLayoutProps {
             alt="Fida logo"
             width={28}
             height={28}
-            className="size-7 object-contain dark:saturate-50"
+            className="size-7 object-contain dark:brightness-0 dark:invert"
           />
           <span>Fida</span>
           <span className="text-[10px] text-fd-muted-foreground border rounded-full px-1.5 py-0.5 leading-none">v{packageJson.version}</span>
