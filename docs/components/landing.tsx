@@ -370,7 +370,7 @@ export function Landing() {
               Set up supported integrations and prepare a safe redacted view for model-bound
               output.
             </p>
-            <code>fida init</code>
+            <code>fida</code>
           </article>
           <article className="fida-card" data-reveal>
             <span className="fida-card__tag">02 / verify</span>
