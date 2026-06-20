@@ -1,7 +1,7 @@
 //! Managed shell-rc block writer (legacy).
 //!
 //! Previously, `fida onboard` added a small, clearly delimited block to the user's
-//! shell startup file. Now, this module is only retained so `fida uninstall` can
+//! shell startup file. Now, this module is only retained so `fida off` can
 //! cleanly remove those legacy blocks.
 //!
 //! ```sh

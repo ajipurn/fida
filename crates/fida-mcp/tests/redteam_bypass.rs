@@ -9,8 +9,8 @@ use std::io::Cursor;
 
 use serde_json::{Value, json};
 
-use fida_broker::SessionHandle;
-use fida_broker::testing::MemoryAuditStore;
+use fida_action::SessionHandle;
+use fida_audit::testing::MemoryAuditStore;
 use fida_mcp::server::PATHJAIL_DENIED_CODE;
 use fida_mcp::{GatewayServer, READ_TOOL};
 use fida_policy::{CompiledPolicy, PolicySource, load_source};

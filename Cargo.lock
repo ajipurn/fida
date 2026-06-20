@@ -268,28 +268,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fida-agent"
-version = "0.1.1"
-dependencies = [
- "chrono",
- "fida-action",
- "fida-broker",
- "fida-diff",
- "fida-session",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "fida-approval"
-version = "0.1.1"
-dependencies = [
- "fida-action",
- "fida-policy",
-]
-
-[[package]]
 name = "fida-audit"
 version = "0.1.1"
 dependencies = [
@@ -303,21 +281,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fida-broker"
-version = "0.1.1"
-dependencies = [
- "chrono",
- "fida-action",
- "fida-approval",
- "fida-audit",
- "fida-exec",
- "fida-policy",
- "fida-session",
- "proptest",
- "tempfile",
-]
-
-[[package]]
 name = "fida-cli"
 version = "0.1.1"
 dependencies = [
@@ -325,14 +288,9 @@ dependencies = [
  "clap",
  "dialoguer",
  "fida-action",
- "fida-agent",
- "fida-approval",
  "fida-audit",
- "fida-broker",
- "fida-diff",
  "fida-exec",
  "fida-mcp",
- "fida-net",
  "fida-policy",
  "fida-scan",
  "fida-secrets",
@@ -342,19 +300,6 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "tokio",
-]
-
-[[package]]
-name = "fida-diff"
-version = "0.1.1"
-dependencies = [
- "fida-action",
- "fida-audit",
- "fida-broker",
- "fida-policy",
- "fida-secrets",
- "proptest",
- "tempfile",
 ]
 
 [[package]]
@@ -374,25 +319,11 @@ dependencies = [
  "chrono",
  "fida-action",
  "fida-audit",
- "fida-broker",
  "fida-policy",
  "fida-secrets",
  "serde",
  "serde_json",
  "tempfile",
-]
-
-[[package]]
-name = "fida-net"
-version = "0.1.1"
-dependencies = [
- "chrono",
- "fida-action",
- "fida-audit",
- "fida-broker",
- "fida-policy",
- "tempfile",
- "tokio",
 ]
 
 [[package]]

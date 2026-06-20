@@ -6,26 +6,30 @@
 //! terminal [`CliError`] into a `u8` via [`CliError::exit_code`] and calls
 //! `std::process::exit`.
 //!
-//! The numeric codes are sourced from the subsystem crates wherever a canonical
-//! constant exists, so there is exactly one definition of each value:
+//! `fida-cli` owns the exit-code table directly. Each value has exactly one
+//! definition here:
 //!
-//! | Code | Source of truth                                    |
+//! | Code | Meaning                                            |
 //! |------|----------------------------------------------------|
-//! | 0    | [`fida_broker::EXIT_SUCCESS`]                    |
-//! | 1    | [`EXIT_GENERAL`] (CLI-owned)                       |
-//! | 2    | [`fida_broker::EXIT_DENY`]                       |
-//! | 3    | [`fida_broker::EXIT_APPROVAL_REQUIRED`]          |
-//! | 4    | [`fida_policy::LoadError::exit_code`] (CLI-owned mirror [`EXIT_INVALID_POLICY`]) |
-//! | 5    | [`fida_agent::EXIT_AGENT_FAILED`]                |
-//! | 6    | [`fida_broker::EXIT_SECRET_BLOCKED`]             |
-//! | 7    | [`fida_agent::EXIT_APPLY_FAILED`]                |
+//! | 0    | success                                             |
+//! | 1    | [`EXIT_GENERAL`] — usage / generic failure         |
+//! | 2    | [`EXIT_DENY`] — policy deny                         |
+//! | 3    | [`EXIT_APPROVAL_REQUIRED`] — non-interactive `ask`  |
+//! | 4    | [`EXIT_INVALID_POLICY`] — invalid / unresolvable policy |
+//! | 6    | [`EXIT_SECRET_BLOCKED`] — secret exposure blocked   |
 
 use std::fmt;
 
-use fida_agent::{EXIT_AGENT_FAILED, EXIT_APPLY_FAILED};
-use fida_broker::{EXIT_APPROVAL_REQUIRED, EXIT_DENY, EXIT_SECRET_BLOCKED, EXIT_SUCCESS};
+/// Successful completion.
+const EXIT_SUCCESS: u8 = 0;
+/// A mediated action resolved to `deny`.
+const EXIT_DENY: u8 = 2;
+/// `ask` required while non-interactive with no remembered decision.
+const EXIT_APPROVAL_REQUIRED: u8 = 3;
+/// A secret exposure was blocked.
+const EXIT_SECRET_BLOCKED: u8 = 6;
 
-/// Successful completion. Mirrors [`fida_broker::EXIT_SUCCESS`].
+/// Successful completion.
 pub const EXIT_SUCCESS_CODE: u8 = EXIT_SUCCESS;
 
 /// General/usage error. CLI-owned; no
@@ -60,12 +64,8 @@ pub enum CliError {
     ApprovalRequired { reason: String },
     /// The resolved policy is invalid or unreadable → exit 4
     InvalidPolicy(String),
-    /// An agent command exited non-zero -> exit 5.
-    AgentFailed { message: String },
     /// A secret exposure was blocked -> exit 6.
     SecretBlocked { reason: String },
-    /// A session apply operation failed -> exit 7.
-    ApplyFailed { message: String },
     /// A permitted `command.run` exited with a non-zero code; the CLI must
     /// surface that exact code. Unlike the other variants
     /// this does not map to a fixed slot in the 0–7 table — it carries the
@@ -92,9 +92,7 @@ impl CliError {
             CliError::PolicyDenied { .. } => EXIT_DENY,
             CliError::ApprovalRequired { .. } => EXIT_APPROVAL_REQUIRED,
             CliError::InvalidPolicy(_) => EXIT_INVALID_POLICY,
-            CliError::AgentFailed { .. } => EXIT_AGENT_FAILED,
             CliError::SecretBlocked { .. } => EXIT_SECRET_BLOCKED,
-            CliError::ApplyFailed { .. } => EXIT_APPLY_FAILED,
             // Transparent passthrough of the executed command's own exit code.
             CliError::CommandExit(code) => *code,
         }
@@ -111,9 +109,7 @@ impl fmt::Display for CliError {
                 write!(f, "approval required (non-interactive): {reason}")
             }
             CliError::InvalidPolicy(m) => write!(f, "invalid policy: {m}"),
-            CliError::AgentFailed { message } => write!(f, "agent command failed: {message}"),
             CliError::SecretBlocked { reason } => write!(f, "secret exposure blocked: {reason}"),
-            CliError::ApplyFailed { message } => write!(f, "session apply failed: {message}"),
             CliError::CommandExit(code) => write!(f, "command exited with status {code}"),
         }
     }
@@ -147,35 +143,17 @@ mod tests {
         );
         assert_eq!(CliError::InvalidPolicy("x".into()).exit_code(), 4);
         assert_eq!(
-            CliError::AgentFailed {
-                message: "x".into()
-            }
-            .exit_code(),
-            5
-        );
-        assert_eq!(
             CliError::SecretBlocked { reason: "x".into() }.exit_code(),
             6
-        );
-        assert_eq!(
-            CliError::ApplyFailed {
-                message: "x".into()
-            }
-            .exit_code(),
-            7
         );
     }
 
     #[test]
-    fn cli_codes_agree_with_subsystem_constants() {
-        // Single source of truth: the CLI must not drift from the crates that
-        // own each outcome.
+    fn cli_codes_agree_with_documented_table() {
         assert_eq!(EXIT_DENY, 2);
         assert_eq!(EXIT_APPROVAL_REQUIRED, 3);
         assert_eq!(EXIT_INVALID_POLICY, 4);
-        assert_eq!(EXIT_AGENT_FAILED, 5);
         assert_eq!(EXIT_SECRET_BLOCKED, 6);
-        assert_eq!(EXIT_APPLY_FAILED, 7);
     }
 
     #[test]
@@ -186,13 +164,7 @@ mod tests {
             CliError::PolicyDenied { reason: "x".into() },
             CliError::ApprovalRequired { reason: "x".into() },
             CliError::InvalidPolicy("x".into()),
-            CliError::AgentFailed {
-                message: "x".into(),
-            },
             CliError::SecretBlocked { reason: "x".into() },
-            CliError::ApplyFailed {
-                message: "x".into(),
-            },
         ] {
             assert!(err.exit_code() <= 7);
         }

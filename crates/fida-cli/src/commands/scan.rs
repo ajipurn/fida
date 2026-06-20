@@ -32,7 +32,7 @@ pub struct ScanArgs {
     pub fail_on: Option<String>,
 
     /// Include git-ignored files in the scan.
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub include_ignored: bool,
 
     /// Additional directory name to exclude (repeatable).
@@ -40,7 +40,7 @@ pub struct ScanArgs {
     pub exclude: Vec<String>,
 
     /// Also scan installed agent MCP configs for risky servers.
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub mcp: bool,
 
     /// Alias of `--mcp`: scan installed agent MCP configs.

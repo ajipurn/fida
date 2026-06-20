@@ -1155,6 +1155,33 @@ audit:
   format: jsonl
 "#;
 
+/// The product-facing posture for Fida's agent integrations.
+///
+/// It deliberately does not govern a developer's ordinary commands, edits,
+/// network access, or approval flow. The gateway still confines mediated file
+/// reads to the workspace and always redacts detected values before returning
+/// content to an agent. Keeping this separate from [`BUILTIN_DEFAULT_POLICY`]
+/// preserves the older general-policy APIs for compatibility without making
+/// them part of Fida's default experience.
+pub const BUILTIN_SECRET_GUARD_POLICY: &str = r#"version: 1
+default_decision: allow
+hard_denies_disabled: true
+
+secrets:
+  redact: true
+  block_in_diffs: false
+
+audit:
+  path: .fida/sessions
+  format: jsonl
+"#;
+
+/// Compile the secret-leak-prevention-only posture used by integrations.
+pub fn load_secret_guard_policy() -> Result<CompiledPolicy, LoadError> {
+    let policy = parse_and_validate(BUILTIN_SECRET_GUARD_POLICY, None)?;
+    compile(merge_profile(&policy, None)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1431,6 +1458,13 @@ profiles:
         assert!(validate_raw(BUILTIN_DEFAULT_POLICY).is_ok());
         let violations = validate_raw("version: 9\ndefault_decision: ask\n").unwrap_err();
         assert!(violations.iter().any(|v| v.field_path == "version"));
+    }
+
+    #[test]
+    fn secret_guard_policy_allows_normal_workflows() {
+        let policy = load_secret_guard_policy().expect("secret guard policy compiles");
+        assert_eq!(policy.default_decision, Decision::Allow);
+        assert!(policy.hard_denies_disabled);
     }
 
     #[test]

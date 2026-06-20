@@ -4,10 +4,10 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use fida_action::SessionHandle;
 use fida_audit::JsonlAuditStore;
-use fida_broker::SessionHandle;
 use fida_mcp::{GatewayServer, READ_TOOL, SHELL_TOOL};
-use fida_policy::{PolicySource, load_source};
+use fida_policy::load_secret_guard_policy;
 use fida_secrets::REDACTION_MARKER;
 use serde_json::{Value, json};
 
@@ -33,7 +33,7 @@ pub fn verify_gateway() -> CliResult<VerificationResult> {
     )
     .map_err(|e| CliError::general(format!("cannot create protection fixture: {e}")))?;
 
-    let policy = load_source(&PolicySource::BuiltinDefault, None)?;
+    let policy = load_secret_guard_policy()?;
     let server = GatewayServer::new(policy, temp.path());
     let audit_root = temp.path().join("audit");
     let mut audit = JsonlAuditStore::new(&audit_root);

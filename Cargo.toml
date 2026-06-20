@@ -17,13 +17,8 @@ fida-policy = { path = "crates/fida-policy", version = "0.1.1" }
 fida-secrets = { path = "crates/fida-secrets", version = "0.1.1" }
 fida-audit = { path = "crates/fida-audit", version = "0.1.1" }
 fida-session = { path = "crates/fida-session", version = "0.1.1" }
-fida-approval = { path = "crates/fida-approval", version = "0.1.1" }
 fida-exec = { path = "crates/fida-exec", version = "0.1.1" }
-fida-broker = { path = "crates/fida-broker", version = "0.1.1" }
-fida-diff = { path = "crates/fida-diff", version = "0.1.1" }
-fida-net = { path = "crates/fida-net", version = "0.1.1" }
 fida-mcp = { path = "crates/fida-mcp", version = "0.1.1" }
-fida-agent = { path = "crates/fida-agent", version = "0.1.1" }
 fida-scan = { path = "crates/fida-scan", version = "0.1.1" }
 
 # Shared serialization stack (audit JSONL, policy YAML)

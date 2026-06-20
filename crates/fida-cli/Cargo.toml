@@ -14,16 +14,11 @@ path = "src/main.rs"
 [dependencies]
 fida-action.workspace = true
 fida-policy.workspace = true
-fida-broker.workspace = true
 fida-session.workspace = true
 fida-exec.workspace = true
-fida-approval.workspace = true
-fida-diff.workspace = true
 fida-secrets.workspace = true
-fida-net.workspace = true
 fida-mcp.workspace = true
 fida-audit.workspace = true
-fida-agent.workspace = true
 fida-scan.workspace = true
 
 # Argument parsing + async runtime (the CLI owns the Tokio runtime).

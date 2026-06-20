@@ -52,7 +52,7 @@ fn real_main() -> u8 {
         }
     };
 
-    match runtime.block_on(cli::dispatch(cli.command, &ctx)) {
+    match runtime.block_on(cli::dispatch(cli.command, &cli.root, &ctx)) {
         Ok(()) => EXIT_SUCCESS_CODE,
         Err(err) => report(err),
     }
@@ -60,13 +60,13 @@ fn real_main() -> u8 {
 
 /// Build the Tokio runtime sized to the command.
 ///
-/// `run` and `mcp` drive concurrent network IO and keep the multi-threaded
+/// `mcp` drives concurrent stdio/network IO and keeps the multi-threaded
 /// runtime; every other command is synchronous and uses a current-thread
 /// runtime, which spawns no worker threads. This removes the largest fixed cost
-/// on the `activate`/`guard`/`exec` hot paths.
-fn build_runtime(command: &cli::Command) -> std::io::Result<tokio::runtime::Runtime> {
+/// on the `guard`/`exec` hot paths.
+fn build_runtime(command: &Option<cli::Command>) -> std::io::Result<tokio::runtime::Runtime> {
     use cli::Command;
-    if matches!(command, Command::Run(_) | Command::Mcp(_)) {
+    if matches!(command, Some(Command::Mcp(_))) {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()

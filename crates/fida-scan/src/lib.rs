@@ -523,7 +523,7 @@ fn recommendations(
             }
             if findings.iter().any(|f| f.raw_secret_exposure) {
                 recs.push(
-                    "Run `fida init` and restart the agent; at least one reachable agent can bypass Fida's redacting gateway with native tools"
+                    "Run `fida` and restart the agent; at least one reachable agent can bypass Fida's redacting gateway with native tools"
                         .to_string(),
                 );
             }

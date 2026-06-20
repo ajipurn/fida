@@ -15,15 +15,15 @@
 //! | 2 | policy deny | yes (exec deny) |
 //! | 3 | non-interactive `ask` (fail closed) | yes (exec ask, stdin not a tty) |
 //! | 4 | invalid / unresolvable policy | yes (version-2, missing --config) |
-//! | 5 | agent command failed | yes (run with failing stub agent) |
+//! | 5 | agent command failed | n/a (agent runner removed) |
 //! | 6 | secret exposure blocked | documented (see `exit_6_secret_blocked_coverage_note`) |
-//! | 7 | session apply failed | documented (see `exit_7_apply_failed_coverage_note`) |
+//! | 7 | session apply failed | n/a (agent runner removed) |
 //!
 //! Determinism: every invocation that could otherwise prompt is run with stdin
 //! redirected to `/dev/null` (not a tty) so the broker fails closed instead of
 //! hanging on an interactive prompt.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use tempfile::TempDir;
@@ -60,15 +60,6 @@ fn code(mut c: Command) -> i32 {
 
 fn output(mut c: Command) -> std::process::Output {
     c.output().expect("spawn fida")
-}
-
-/// Whether `git` is available on PATH (some tests need a real repo).
-fn git_available() -> bool {
-    Command::new("git")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
 }
 
 const ALLOW: &str = "version: 1\ndefault_decision: allow\n";
@@ -222,14 +213,19 @@ files:
     let home = tempfile::tempdir().unwrap();
     std::fs::write(project.path().join(".env"), "TOP_SECRET=fida\n").unwrap();
 
-    let mut init_cmd = cmd();
-    init_cmd
+    // Activate protection globally (isolated via FIDA_HOME/HOME) so the guard
+    // mediates instead of passing the command through.
+    let mut on_cmd = cmd();
+    on_cmd
         .current_dir(project.path())
-        .args(["init", "--project", "--agents", "codex"]);
-    assert_eq!(code(init_cmd), 0);
+        .env("HOME", home.path())
+        .env("FIDA_HOME", home.path())
+        .args(["on", "codex"]);
+    assert_eq!(code(on_cmd), 0);
 
     let mut c = cmd();
     c.current_dir(project.path())
+        .env("HOME", home.path())
         .env("FIDA_HOME", home.path())
         .arg("--config")
         .arg(&policy)
@@ -285,73 +281,6 @@ fn missing_config_path_exits_4() {
 }
 
 // ---------------------------------------------------------------------------
-// Exit 5 — agent command failed
-// ---------------------------------------------------------------------------
-
-/// Run a git command in `repo`, asserting success.
-#[cfg(unix)]
-fn git(repo: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .args(args)
-        .current_dir(repo)
-        .output()
-        .expect("git runs");
-    assert!(
-        out.status.success(),
-        "git {args:?} failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-}
-
-/// Initialize a git repo with one commit so `fida run` can record a baseline.
-#[cfg(unix)]
-fn init_git_repo() -> TempDir {
-    let dir = tempfile::tempdir().unwrap();
-    let p = dir.path();
-    git(p, &["init", "-q"]);
-    git(p, &["config", "user.email", "test@example.com"]);
-    git(p, &["config", "user.name", "Test"]);
-    git(p, &["config", "commit.gpgsign", "false"]);
-    std::fs::write(p.join("tracked.txt"), "original\n").unwrap();
-    git(p, &["add", "-A"]);
-    git(p, &["commit", "-q", "-m", "initial"]);
-    dir
-}
-
-#[cfg(unix)]
-#[test]
-fn run_agent_failure_exits_5() {
-    if !git_available() {
-        eprintln!("skipping run_agent_failure_exits_5: git not available");
-        return;
-    }
-    // A non-zero agent exit dominates -> exit 5. The stub agent
-    // `sh -c "exit 1"` fails without touching the workspace.
-    let (_pdir, policy) = temp_policy(ALLOW);
-    let repo = init_git_repo();
-
-    let mut c = cmd();
-    c.current_dir(repo.path())
-        .arg("--quiet")
-        .arg("--config")
-        .arg(&policy)
-        .args([
-            "run",
-            "--mode",
-            "enforce",
-            "--workspace",
-            "current",
-            "--apply",
-            "never",
-            "--",
-            "sh",
-            "-c",
-            "exit 1",
-        ]);
-    assert_eq!(code(c), 5);
-}
-
-// ---------------------------------------------------------------------------
 // Exit 6 / 7 — coverage notes
 // ---------------------------------------------------------------------------
 
@@ -387,14 +316,14 @@ fn exit_7_apply_failed_coverage_note() {
 
 #[test]
 fn json_output_is_valid_json() {
-    // `--json` prints valid, parseable JSON for the command's primary
-    // result. `policy schema` always prints JSON and exits 0, independent of
-    // the working directory.
+    // `--json` prints valid, parseable JSON for the command's primary result.
+    // `scan` over an empty directory finds nothing and exits 0.
+    let dir = tempfile::tempdir().unwrap();
     let mut c = cmd();
-    c.args(["--json", "policy", "schema"]);
+    c.current_dir(dir.path()).args(["--json", "scan"]);
     let out = c.output().expect("spawn fida");
-    assert_eq!(out.status.code(), Some(0), "policy schema must exit 0");
+    assert_eq!(out.status.code(), Some(0), "clean scan must exit 0");
     let parsed: serde_json::Value =
         serde_json::from_slice(&out.stdout).expect("stdout must be valid JSON");
-    assert!(parsed.is_object(), "schema JSON is an object");
+    assert!(parsed.is_object(), "scan JSON is an object");
 }

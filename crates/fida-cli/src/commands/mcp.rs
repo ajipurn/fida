@@ -22,11 +22,14 @@ use std::process::{Command, Stdio};
 
 use clap::{Args, Subcommand};
 
+use fida_action::SessionHandle;
 use fida_action::{Action, ActionKind, ActionPayload, Actor, Decision, DecisionResult, Risk};
 use fida_audit::JsonlAuditStore;
-use fida_broker::SessionHandle;
 use fida_mcp::{GatewayServer, McpError, McpProxy, McpPump, McpTool, load_definition, risk_label};
-use fida_policy::{CompiledPolicy, PolicySource, evaluate, load_source, resolve_source_in};
+use fida_policy::{
+    CompiledPolicy, PolicySource, evaluate, load_secret_guard_policy, load_source,
+    resolve_source_in,
+};
 
 use crate::context::GlobalContext;
 use crate::error::{CliError, CliResult};
@@ -351,13 +354,13 @@ fn proxy_session_id() -> String {
 ///
 /// Unlike `mcp proxy` (which gates *another* server's tools), this exposes
 /// Fida's own `fida_read` / `fida_shell` tools so an MCP-capable agent can route
-/// its file reads and shell commands back through policy. Each gated call is
-/// audited under a per-run session in the policy's audit directory.
+/// its file reads and shell commands through redaction. Each call is audited
+/// under a per-run session without applying repository command policies.
 ///
 /// The JSON-RPC stream is framed on stdout, so human notices go to stderr to
 /// avoid corrupting it.
 fn serve(args: &ServeArgs, ctx: &GlobalContext) -> CliResult {
-    let policy = load_policy(ctx)?;
+    let policy = load_secret_guard_policy()?;
     let workspace = match &args.workspace {
         Some(dir) => dir.clone(),
         None => std::env::current_dir()
@@ -366,7 +369,7 @@ fn serve(args: &ServeArgs, ctx: &GlobalContext) -> CliResult {
 
     if !ctx.is_quiet() && !ctx.json {
         eprintln!(
-            "fida mcp serve: exposing fida_read/fida_shell for `{}` (ask/deny fail closed)",
+            "fida mcp serve: exposing redacting fida_read/fida_shell for `{}`",
             workspace.display()
         );
     }
