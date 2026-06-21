@@ -7,7 +7,6 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import fidaLogo from '@assets/fida-logo.png';
 import packageJson from '../package.json';
-import { SecretField } from './secret-field';
 import { Loader } from './loader';
 import Link from 'next/link';
 
@@ -37,24 +36,67 @@ const AGENTS = [
   'Antigravity',
 ];
 
-const PILLARS = [
+// Feature blocks — each a real-output mini-terminal. Line colour classes:
+// p=prompt, ok=enforced/safe, eff=best_effort, warn=exposed, dim=muted, lead=resolved.
+type TermLine = { p?: boolean; c?: string; t: string };
+type Feature = {
+  tag: string;
+  cmd: string;
+  title: string;
+  body: string;
+  status: string;
+  lines: TermLine[];
+};
+
+const FEATURES: Feature[] = [
   {
     tag: '01 / protect',
-    title: 'Install agent protection',
-    body: 'Set up supported integrations and prepare a safe redacted view for model-bound output.',
     cmd: 'fida',
+    title: 'Install agent protection',
+    body: 'One command detects every supported agent, installs its redacting gateway and steering, and runs a synthetic-secret self-test. Protection is global — one install guards every repository.',
+    status: 'installing',
+    lines: [
+      { p: true, t: 'fida' },
+      { c: 'dim', t: '◇ detecting agents…' },
+      { c: 'ok', t: '✓ Codex          enforced' },
+      { c: 'ok', t: '✓ Claude Code    enforced' },
+      { c: 'eff', t: '✓ Cursor         best_effort' },
+      { c: 'eff', t: '✓ Windsurf       best_effort' },
+      { c: 'dim', t: '◇ synthetic-secret self-test … passed' },
+      { c: 'ok', t: '✓ protection installed · global' },
+    ],
   },
   {
     tag: '02 / verify',
-    title: 'Know your coverage',
-    body: 'See enforced, best-effort, or incomplete protection alongside the latest synthetic-secret self-test.',
     cmd: 'fida status',
+    title: 'Know your coverage',
+    body: 'See enforced, best-effort, or incomplete protection per agent — alongside the count of secrets Fida has already protected in this repository. No guessing what is actually guarded.',
+    status: 'coverage',
+    lines: [
+      { p: true, t: 'fida status' },
+      { c: 'ok', t: 'Codex          enforced' },
+      { c: 'ok', t: 'Claude Code    enforced' },
+      { c: 'eff', t: 'Cursor         best_effort' },
+      { c: 'eff', t: 'Copilot        best_effort' },
+      { c: 'dim', t: '────────────────────────────' },
+      { c: 'lead', t: '12 secrets protected · this repo' },
+    ],
   },
   {
     tag: '03 / scan',
-    title: 'Find raw-secret risk',
-    body: 'Scan tracked and sensitive ignored files, then distinguish discovered secrets from raw model exposure.',
     cmd: 'fida scan',
+    title: 'Find raw-secret risk',
+    body: 'Scan tracked and sensitive files, then read the answer that matters: raw_secret_exposure — whether an unredacted value could ever reach a model. It never prints a secret value, length, or fragment.',
+    status: 'scanning',
+    lines: [
+      { p: true, t: 'fida scan' },
+      { c: 'dim', t: 'scanning tracked + sensitive files…' },
+      { c: 'warn', t: '.env   secret detected · git-tracked' },
+      { t: 'risk                 medium' },
+      { c: 'ok', t: 'protection           enforced' },
+      { c: 'ok', t: 'raw_secret_exposure  false' },
+      { c: 'lead', t: '→ no unredacted value reaches a model' },
+    ],
   },
 ];
 
@@ -85,7 +127,6 @@ function ShieldIcon() {
 
 export function Landing() {
   const root = useRef<HTMLDivElement>(null);
-  const exposureRef = useRef(0);
   const introRef = useRef<gsap.core.Timeline | null>(null);
   const lenisRef = useRef<Lenis | null>(null);
   const [copied, setCopied] = useState(false);
@@ -149,6 +190,7 @@ export function Landing() {
     gsap.registerPlugin(ScrollTrigger);
 
     const q = <T extends Element>(sel: string) => el.querySelector<T>(sel);
+    const heroEl = q<HTMLElement>('.fida-hero');
     const typeEl = q<HTMLElement>('[data-type]');
     const secretEl = q<HTMLElement>('[data-secret]');
     const caret = q<HTMLElement>('[data-caret]');
@@ -159,6 +201,7 @@ export function Landing() {
 
     // Deterministic demo state for a scrub position p ∈ [0,1] — read→type→
     // leak→scan→redact→safe. Pure function of p so it scrubs both ways.
+    // It also resolves the headline accent (--resolve) as the secret is redacted.
     const renderDemo = (p: number) => {
       const tp = clamp01(p / 0.3);
       if (typeEl) typeEl.textContent = TYPED.slice(0, Math.round(tp * TYPED.length));
@@ -166,7 +209,8 @@ export function Landing() {
 
       const redacted = p >= 0.6;
       const showSecret = p >= 0.3;
-      if (secretEl) secretEl.textContent = redacted ? REDACTED : showSecret ? DEMO_SECRET : '';
+      if (secretEl)
+        secretEl.textContent = redacted ? REDACTED : showSecret ? DEMO_SECRET : '';
 
       if (leak) {
         const lp = clamp01((p - 0.3) / 0.08);
@@ -189,7 +233,8 @@ export function Landing() {
         note.style.opacity = String(np);
         note.style.transform = `translateY(${(1 - np) * 8}px)`;
       }
-      exposureRef.current = p >= 0.3 && p < 0.6 ? 1 : 0;
+      // Headline accent resolves as the redaction completes.
+      if (heroEl) heroEl.style.setProperty('--resolve', String(clamp01((p - 0.6) / 0.35)));
     };
 
     const mm = gsap.matchMedia();
@@ -197,12 +242,14 @@ export function Landing() {
       {
         reduce: '(prefers-reduced-motion: reduce)',
         ok: '(prefers-reduced-motion: no-preference)',
+        pin: '(min-width: 880px) and (prefers-reduced-motion: no-preference)',
         pointer: '(hover: hover) and (pointer: fine)',
       },
       (ctx) => {
-        const { reduce, pointer } = ctx.conditions as {
+        const { reduce, pin, pointer } = ctx.conditions as {
           reduce: boolean;
           ok: boolean;
+          pin: boolean;
           pointer: boolean;
         };
 
@@ -217,7 +264,9 @@ export function Landing() {
               '.fida-sub',
               '.fida-cta-row',
               '.fida-install',
+              '.fida-hero__demo',
               '[data-reveal]',
+              '.fida-term__line',
               '.fida-statement .fida-w',
             ],
             { autoAlpha: 1, y: 0, yPercent: 0 }
@@ -230,7 +279,6 @@ export function Landing() {
         // ---- hero entrance (paused; released by the loader hand-off) ----
         const intro = gsap.timeline({ paused: true, defaults: { ease: 'power3.out' } });
         intro
-          .from('.fida-field', { autoAlpha: 0, duration: 1.4, ease: 'power2.out' }, 0)
           .from('.fida-nav', { y: -24, autoAlpha: 0, duration: 0.7 }, 0.1)
           .from('.fida-eyebrow', { y: 22, autoAlpha: 0, duration: 0.6 }, 0.2)
           .from(
@@ -239,23 +287,32 @@ export function Landing() {
             0.3
           )
           .from('.fida-sub', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.55')
-          .from('.fida-cta-row', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.45')
-          .from('.fida-install', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.5')
+          .from('.fida-hero__demo', { y: 34, autoAlpha: 0, duration: 0.9 }, '-=0.5')
+          .from('.fida-cta-row', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.55')
+          .from('.fida-install', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.55');
         introRef.current = intro;
         if (started) intro.play();
 
-        // ---- hero parallax — content drifts up as you leave ----
-        gsap.to('.fida-hero__content', {
-          yPercent: -14,
-          autoAlpha: 0.15,
-          ease: 'none',
-          scrollTrigger: {
+        // ---- pinned, scroll-scrubbed redaction demo (hero is the stage) ----
+        if (pin) {
+          ScrollTrigger.create({
+            trigger: '.fida-hero',
+            start: 'top top',
+            end: '+=130%',
+            pin: true,
+            scrub: true,
+            onUpdate: (self) => renderDemo(self.progress),
+          });
+        } else {
+          // No pin (mobile): scrub the demo as the hero passes through the viewport.
+          ScrollTrigger.create({
             trigger: '.fida-hero',
             start: 'top top',
             end: 'bottom top',
             scrub: true,
-          },
-        });
+            onUpdate: (self) => renderDemo(self.progress),
+          });
+        }
 
         // ---- statement: brighten word-by-word ----
         gsap.fromTo(
@@ -274,19 +331,38 @@ export function Landing() {
           }
         );
 
-        // ---- pinned, scroll-scrubbed redaction demo ----
-        ScrollTrigger.create({
-          trigger: '[data-demo-sec]',
-          start: 'top top',
-          end: '+=170%',
-          pin: '[data-demo-pin]',
-          scrub: true,
-          onUpdate: (self) => renderDemo(self.progress),
+        // ---- feature blocks: reveal block, then stagger its terminal lines ----
+        gsap.utils.toArray<HTMLElement>('.fida-feat').forEach((feat) => {
+          const lines = feat.querySelectorAll('.fida-term__line');
+          gsap.set(feat.querySelectorAll('[data-reveal]'), { autoAlpha: 0, y: 30 });
+          gsap.set(lines, { autoAlpha: 0, y: 8 });
+          ScrollTrigger.create({
+            trigger: feat,
+            start: 'top 78%',
+            once: true,
+            onEnter: () => {
+              gsap.to(feat.querySelectorAll('[data-reveal]'), {
+                autoAlpha: 1,
+                y: 0,
+                duration: 0.7,
+                ease: 'power3.out',
+                stagger: 0.1,
+              });
+              gsap.to(lines, {
+                autoAlpha: 1,
+                y: 0,
+                duration: 0.4,
+                ease: 'power2.out',
+                stagger: 0.08,
+                delay: 0.25,
+              });
+            },
+          });
         });
 
-        // ---- pillar reveal ----
-        gsap.set('[data-reveal]', { autoAlpha: 0, y: 30 });
-        ScrollTrigger.batch('[data-reveal]', {
+        // ---- generic reveal (CTA panel, etc.) ----
+        gsap.set('[data-reveal].fida-solo', { autoAlpha: 0, y: 30 });
+        ScrollTrigger.batch('[data-reveal].fida-solo', {
           start: 'top 85%',
           once: true,
           onEnter: (batch) =>
@@ -311,7 +387,6 @@ export function Landing() {
           onUpdate: (self) => {
             const v = gsap.utils.clamp(-8, 8, self.getVelocity() / 260);
             if (v !== 0) marquee.timeScale(Math.sign(v) * Math.max(1, Math.abs(v)));
-            // ease back to the calm forward drift
             gsap.to(marquee, { timeScale: 1, duration: 0.7, overwrite: true });
           },
         });
@@ -327,10 +402,9 @@ export function Landing() {
           }
         );
 
-        // ---- pointer micro-interactions ----
+        // ---- pointer micro-interactions — magnetic CTAs only (restrained) ----
         if (pointer) {
           const cleanups: Array<() => void> = [];
-
           el.querySelectorAll<HTMLElement>('.fida-magnet').forEach((mag) => {
             const mx = gsap.quickTo(mag, 'x', { duration: 0.5, ease: 'power3' });
             const my = gsap.quickTo(mag, 'y', { duration: 0.5, ease: 'power3' });
@@ -350,41 +424,6 @@ export function Landing() {
               mag.removeEventListener('pointerleave', onLeave);
             });
           });
-
-          el.querySelectorAll<HTMLElement>('.fida-card').forEach((card) => {
-            gsap.set(card, { transformPerspective: 800, transformOrigin: 'center' });
-            const rotX = gsap.quickTo(card, 'rotationX', { duration: 0.5, ease: 'power3' });
-            const rotY = gsap.quickTo(card, 'rotationY', { duration: 0.5, ease: 'power3' });
-            const ly = gsap.quickTo(card, 'y', { duration: 0.5, ease: 'power3' });
-            const onEnter = () => {
-              card.style.setProperty('--spot', '1');
-              ly(-6);
-            };
-            const onMove = (e: PointerEvent) => {
-              const r = card.getBoundingClientRect();
-              const px = (e.clientX - r.left) / r.width;
-              const py = (e.clientY - r.top) / r.height;
-              card.style.setProperty('--mx', `${px * 100}%`);
-              card.style.setProperty('--my', `${py * 100}%`);
-              rotY(gsap.utils.clamp(-4, 4, (px - 0.5) * 8));
-              rotX(gsap.utils.clamp(-4, 4, (0.5 - py) * 8));
-            };
-            const onLeave = () => {
-              card.style.setProperty('--spot', '0');
-              rotX(0);
-              rotY(0);
-              ly(0);
-            };
-            card.addEventListener('pointerenter', onEnter);
-            card.addEventListener('pointermove', onMove);
-            card.addEventListener('pointerleave', onLeave);
-            cleanups.push(() => {
-              card.removeEventListener('pointerenter', onEnter);
-              card.removeEventListener('pointermove', onMove);
-              card.removeEventListener('pointerleave', onLeave);
-            });
-          });
-
           return () => cleanups.forEach((fn) => fn());
         }
       },
@@ -414,27 +453,36 @@ export function Landing() {
 
       {/* ---------------- Nav ---------------- */}
       <nav className="fida-nav">
-        <a className="fida-nav__brand" href="/" data-cursor>
-          <Image src={fidaLogo} alt="Fida" width={24} height={24} priority className='invert brightness-0' />
+        <a className="fida-nav__brand" href="/">
+          <Image
+            src={fidaLogo}
+            alt="Fida"
+            width={24}
+            height={24}
+            priority
+            className="invert brightness-0"
+          />
           <span>Fida</span>
           <span className="fida-nav__ver">v{packageJson.version}</span>
         </a>
         <div className="fida-nav__links">
-          <a href="/docs" data-cursor>
-            Docs
-          </a>
-          <a href="https://github.com/ajipurn/fida" target="_blank" rel="noreferrer" data-cursor>
+          <a href="/docs">Docs</a>
+          <a href="https://github.com/ajipurn/fida" target="_blank" rel="noreferrer">
             GitHub
           </a>
         </div>
       </nav>
 
-      {/* ---------------- Hero ---------------- */}
+      {/* ---------------- Hero (pinned stage) ---------------- */}
       <section className="fida-hero">
         <span className="fida-nav-sentinel" aria-hidden="true" />
-        <div className="fida-hero__field">
-          <SecretField exposureRef={exposureRef} />
+        <div className="fida-hero__aurora" aria-hidden="true">
+          <i className="fida-aurora-a" />
+          <i className="fida-aurora-b" />
+          <i className="fida-aurora-c" />
+          <span className="fida-hero__grid" />
         </div>
+
         <div className="fida-hero__content">
           <span className="fida-eyebrow">
             <ShieldIcon />
@@ -449,12 +497,14 @@ export function Landing() {
               ' ',
             ])}
             <br />
-            {HEADLINE_ACCENT.flatMap((word, i) => [
-              <span className="fida-word fida-headline__accent" key={`a${i}`}>
-                <span>{word}</span>
-              </span>,
-              ' ',
-            ])}
+            <span className="fida-headline__accent">
+              {HEADLINE_ACCENT.flatMap((word, i) => [
+                <span className="fida-word" key={`a${i}`}>
+                  <span>{word}</span>
+                </span>,
+                ' ',
+              ])}
+            </span>
           </h1>
 
           <p className="fida-sub">
@@ -463,9 +513,45 @@ export function Landing() {
             the model.
           </p>
 
+          {/* ---- redaction demo: the centerpiece, scrubbed by scroll ---- */}
+          <div
+            className="fida-hero__demo"
+            role="img"
+            aria-label="An AI agent reads .env through Fida; the file stays readable while the synthetic credential is redacted before it reaches the model."
+          >
+            <div className="fida-demo">
+              <div className="fida-demo__bar">
+                <span className="fida-demo__dot" />
+                <span className="fida-demo__dot" />
+                <span className="fida-demo__dot" />
+                <span className="fida-demo__status">protected</span>
+              </div>
+              <div className="fida-demo__screen">
+                <span className="fida-demo__scan" data-scan />
+                <div className="fida-line fida-line--cmd">
+                  <span className="fida-prompt">$</span> <span data-type />
+                  <span className="fida-caret" data-caret />
+                </div>
+                <div className="fida-line fida-line--leak" data-leak data-redacted="false">
+                  DEMO_CREDENTIAL=<span data-secret />
+                </div>
+                <div className="fida-line fida-line--blocked" data-blocked>
+                  <ShieldIcon />
+                  SAFE VIEW — detected value redacted
+                </div>
+                <div className="fida-line fida-line--note" data-note>
+                  useful structure returned · the secret never reached the model
+                </div>
+              </div>
+            </div>
+            <span className="fida-hero__scrollcue" aria-hidden="true">
+              scroll to redact
+            </span>
+          </div>
+
           <div className="fida-cta-row">
             <span className="fida-magnet">
-              <a className="fida-btn fida-btn--primary" href="/docs" data-cursor>
+              <a className="fida-btn fida-btn--primary" href="/docs">
                 Get started
               </a>
             </span>
@@ -475,7 +561,6 @@ export function Landing() {
                 href="https://github.com/ajipurn/fida"
                 target="_blank"
                 rel="noreferrer"
-                data-cursor
               >
                 View on GitHub
               </a>
@@ -492,7 +577,6 @@ export function Landing() {
               className="fida-install__copy"
               data-copied={copied}
               onClick={copyInstall}
-              data-cursor
               aria-label={copied ? 'Install command copied' : 'Copy install command'}
             >
               {copied ? 'Copied' : 'Copy'}
@@ -513,65 +597,52 @@ export function Landing() {
         </p>
       </section>
 
-      {/* ---------------- Pinned redaction demo ---------------- */}
-      <section className="fida-demo-sec" data-demo-sec>
-        <div className="fida-demo-pin" data-demo-pin>
-          <div className="fida-demo-cap">
-            <span className="fida-kicker">live · redaction</span>
-            <h2>Read the file. Not the secret.</h2>
-          </div>
-          <div
-            className="fida-demo"
-            data-demo
-            role="img"
-            aria-label="An AI agent reads .env through Fida; the file stays readable while the synthetic credential is redacted before it reaches the model."
-          >
-            <div className="fida-demo__bar">
-              <span className="fida-demo__dot" />
-              <span className="fida-demo__dot" />
-              <span className="fida-demo__dot" />
-              <span className="fida-demo__status">protected</span>
-            </div>
-            <div className="fida-demo__screen">
-              <span className="fida-demo__scan" data-scan />
-              <div className="fida-line fida-line--cmd">
-                <span className="fida-prompt">$</span> <span data-type />
-                <span className="fida-caret" data-caret />
-              </div>
-              <div className="fida-line fida-line--leak" data-leak data-redacted="false">
-                DEMO_CREDENTIAL=<span data-secret />
-              </div>
-              <div className="fida-line fida-line--blocked" data-blocked>
-                <ShieldIcon />
-                SAFE VIEW — detected value redacted
-              </div>
-              <div className="fida-line fida-line--note" data-note>
-                useful structure returned · the secret never reached the model
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- Pillars ---------------- */}
-      <section className="fida-shell fida-pillars">
-        <div className="fida-pillars__head" data-reveal>
-          <h2>Install. Verify. Scan.</h2>
+      {/* ---------------- Feature blocks ---------------- */}
+      <section className="fida-shell fida-feats">
+        <div className="fida-feats__head fida-solo" data-reveal>
+          <span className="fida-kicker">install · verify · scan</span>
+          <h2>Three commands. Honest coverage.</h2>
           <p>
             Install protection for detected agents, verify the real read and shell paths, then
-            see whether raw secret values can still reach a model.
+            see whether a raw secret value can still reach a model.
           </p>
         </div>
-        <div className="fida-grid">
-          {PILLARS.map((p) => (
-            <article className="fida-card" data-reveal key={p.tag}>
-              <span className="fida-card__tag">{p.tag}</span>
-              <h3>{p.title}</h3>
-              <p>{p.body}</p>
-              <code>{p.cmd}</code>
-            </article>
-          ))}
-        </div>
+
+        {FEATURES.map((f, i) => (
+          <article className={`fida-feat ${i % 2 ? 'fida-feat--rev' : ''}`} key={f.tag}>
+            <div className="fida-feat__copy">
+              <span className="fida-feat__tag" data-reveal>
+                {f.tag}
+              </span>
+              <h3 data-reveal>{f.title}</h3>
+              <p data-reveal>{f.body}</p>
+              <code className="fida-feat__cmd" data-reveal>
+                {f.cmd}
+              </code>
+            </div>
+            <div className="fida-feat__term" data-reveal>
+              <div className="fida-term">
+                <div className="fida-term__bar">
+                  <span className="fida-term__dot" />
+                  <span className="fida-term__dot" />
+                  <span className="fida-term__dot" />
+                  <span className="fida-term__name">{f.status}</span>
+                </div>
+                <div className="fida-term__screen">
+                  {f.lines.map((ln, j) => (
+                    <div
+                      className={`fida-term__line${ln.c ? ` is-${ln.c}` : ''}`}
+                      key={j}
+                    >
+                      {ln.p ? <span className="fida-term__prompt">$</span> : null}
+                      {ln.t}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </article>
+        ))}
       </section>
 
       {/* ---------------- Agents marquee ---------------- */}
@@ -592,7 +663,7 @@ export function Landing() {
 
       {/* ---------------- Final CTA ---------------- */}
       <section className="fida-shell fida-final">
-        <div className="fida-final__panel" data-reveal>
+        <div className="fida-final__panel fida-solo" data-reveal>
           <h2>Protection you can verify.</h2>
           <p>
             One command installs supported integrations, runs a synthetic-secret self-test, and
@@ -600,7 +671,7 @@ export function Landing() {
           </p>
           <div className="fida-cta-row">
             <span className="fida-magnet">
-              <Link className="fida-btn fida-btn--primary" href="/docs" data-cursor>
+              <Link className="fida-btn fida-btn--primary" href="/docs">
                 Read the docs
               </Link>
             </span>
@@ -610,7 +681,6 @@ export function Landing() {
                 href="https://github.com/ajipurn/fida"
                 target="_blank"
                 rel="noreferrer"
-                data-cursor
               >
                 Star on GitHub
               </a>
@@ -626,10 +696,8 @@ export function Landing() {
             Fida <span>— secrets stay secret.</span>
           </span>
           <nav className="fida-foot__links">
-            <a href="/docs" data-cursor>
-              Docs
-            </a>
-            <a href="https://github.com/ajipurn/fida" target="_blank" rel="noreferrer" data-cursor>
+            <a href="/docs">Docs</a>
+            <a href="https://github.com/ajipurn/fida" target="_blank" rel="noreferrer">
               GitHub
             </a>
           </nav>

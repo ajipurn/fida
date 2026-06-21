@@ -3,10 +3,11 @@
 @import 'fumadocs-ui/css/preset.css';
 
 /* Hallmark · pre-emit critique: P5 H5 E4 S5 R4 V4
- * macrostructure: Cinematic Hero · genre: technical/Hum · theme: Hum (IBM Plex Sans + IBM Plex Mono)
- * tone: credible-cool · anchor: sky blue · enrichment: art-directed dark landing (Lenis + WebGL + scroll story)
- * palette: cinematic dark — near-black ink + sky-blue accent; warm terracotta as the "exposed" semantic only.
- * The /docs surfaces still use the fumadocs --color-fd-* token overrides below.
+ * macrostructure: Cinematic Hero · genre: technical/precision dev-tool
+ * reference blend: Linear (calm, demo-driven) × Made With GSAP (motion craft)
+ * type: Cabinet Grotesk (display/UI, self-host) + Martian Mono (CLI) — landing only.
+ * palette: cinematic dark — near-black ink + sky-blue accent; warm terracotta = "exposed".
+ * The /docs surfaces keep IBM Plex and the fumadocs --color-fd-* token overrides below.
  */
 
 :root {
@@ -105,17 +106,19 @@ html.lenis body {
   pointer-events: none;
 }
 
-/* ============================ Landing (cinematic dark) ============================ */
+/* ============================ Landing (Linear × GSAP, precision dark) ============================ */
 .fida {
   --bg: #06070b;
   --bg-soft: #0a0d14;
-  --line: rgba(255, 255, 255, 0.09);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
   --fg: #eef3fa;
   --muted: #93a1b4;
   --faint: #5d6b7e;
   /* Unified with /docs accent (OKLCH hue ~235) so brand blue matches across surfaces. */
   --accent: oklch(0.75 0.13 235);
   --accent-2: oklch(0.86 0.09 235);
+  --accent-deep: oklch(0.55 0.16 258);
   --warm: #df8e6e;
   --good: #8fe3a0;
   --maxw: 1120px;
@@ -125,7 +128,8 @@ html.lenis body {
   position: relative;
   background: var(--bg);
   color: var(--fg);
-  font-family: var(--font-hum-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-cabinet), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: 'ss01';
   -webkit-font-smoothing: antialiased;
   overflow: clip;
 }
@@ -154,6 +158,9 @@ body:has(.fida)::-webkit-scrollbar {
   max-width: var(--maxw);
   margin-inline: auto;
   padding-inline: clamp(18px, 4vw, 40px);
+}
+.fida-mono {
+  font-family: var(--font-martian), ui-monospace, monospace;
 }
 
 /* ---- scan-progress rail (right edge, fills with page scroll) ---- */
@@ -186,22 +193,36 @@ body:has(.fida)::-webkit-scrollbar {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 26px;
   overflow: hidden;
 }
+.fida-loader::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    60% 50% at 50% 46%,
+    color-mix(in oklab, var(--accent-deep) 22%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
 .fida-loader__mark {
-  font-size: clamp(2.4rem, 9vw, 5rem);
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  position: relative;
+  font-family: var(--font-cabinet), sans-serif;
+  font-size: clamp(3rem, 12vw, 7rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
   color: var(--fg);
 }
 .fida-loader__meta {
+  position: relative;
   display: flex;
   gap: 14px;
   align-items: center;
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 12px;
-  letter-spacing: 0.12em;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -210,7 +231,8 @@ body:has(.fida)::-webkit-scrollbar {
   font-variant-numeric: tabular-nums;
 }
 .fida-loader__rule {
-  width: min(420px, 70vw);
+  position: relative;
+  width: min(440px, 72vw);
   height: 1px;
   background: var(--line);
   overflow: hidden;
@@ -219,7 +241,7 @@ body:has(.fida)::-webkit-scrollbar {
   display: block;
   height: 100%;
   width: 100%;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
   transform: scaleX(0);
   transform-origin: left;
 }
@@ -240,9 +262,9 @@ body:has(.fida)::-webkit-scrollbar {
     border-color 0.3s var(--ease), padding 0.3s var(--ease);
 }
 .fida-nav--solid {
-  padding-block: 14px;
-  background: color-mix(in oklab, var(--bg) 72%, transparent);
-  backdrop-filter: blur(12px);
+  padding-block: 13px;
+  background: color-mix(in oklab, var(--bg) 70%, transparent);
+  backdrop-filter: blur(14px);
   border-bottom-color: var(--line);
 }
 .fida-nav-sentinel {
@@ -256,10 +278,10 @@ body:has(.fida)::-webkit-scrollbar {
 .fida-nav__brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   font-size: 17px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--fg);
   text-decoration: none;
 }
@@ -269,18 +291,18 @@ body:has(.fida)::-webkit-scrollbar {
   border-radius: 6px;
 }
 .fida-nav__ver {
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 10px;
-  font-weight: 600;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 500;
   line-height: 1;
   color: var(--muted);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 3px 6px;
+  padding: 4px 7px;
 }
 .fida-nav__links {
   display: flex;
-  gap: 22px;
+  gap: 24px;
 }
 .fida-nav__links a {
   position: relative;
@@ -288,61 +310,118 @@ body:has(.fida)::-webkit-scrollbar {
   font-weight: 500;
   color: var(--fg);
   text-decoration: none;
-  opacity: 0.85;
+  opacity: 0.82;
   transition: opacity 0.2s var(--ease);
 }
 .fida-nav__links a:hover {
   opacity: 1;
 }
 
-/* ---- hero ---- */
+/* ---- hero (pinned redaction stage) ---- */
 .fida-hero {
+  --resolve: 0;
   position: relative;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 120px clamp(18px, 4vw, 40px) 90px;
+  padding: 104px clamp(18px, 4vw, 40px) 64px;
   overflow: hidden;
   isolation: isolate;
 }
-.fida-hero__field {
+
+/* GPU-composited aurora — drifting blurred blobs + faint blueprint grid. */
+.fida-hero__aurora {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: radial-gradient(
-    80% 60% at 50% 32%,
-    color-mix(in oklab, var(--accent) 16%, var(--bg)),
-    var(--bg) 72%
-  );
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% -10%, #0b1322 0%, var(--bg) 60%);
 }
-.fida-hero__field::after {
+.fida-hero__aurora > i {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.6;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.fida-aurora-a {
+  width: 56vw;
+  height: 56vw;
+  left: 50%;
+  top: 6%;
+  margin-left: -28vw;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--accent) 70%, transparent), transparent);
+  animation: fida-drift-a 18s var(--ease-io) infinite alternate;
+}
+.fida-aurora-b {
+  width: 40vw;
+  height: 40vw;
+  left: 16%;
+  top: 30%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--accent-deep) 75%, transparent), transparent);
+  animation: fida-drift-b 22s var(--ease-io) infinite alternate;
+}
+.fida-aurora-c {
+  width: 34vw;
+  height: 34vw;
+  right: 12%;
+  top: 18%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--accent-2) 55%, transparent), transparent);
+  animation: fida-drift-c 26s var(--ease-io) infinite alternate;
+}
+.fida-hero__grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 38%, #000 0%, transparent 78%);
+  mask-image: radial-gradient(70% 60% at 50% 38%, #000 0%, transparent 78%);
+  opacity: 0.5;
+}
+.fida-hero__aurora::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(130% 95% at 50% 14%, transparent 55%, var(--bg) 88%);
-  pointer-events: none;
+  background: radial-gradient(130% 100% at 50% 8%, transparent 52%, var(--bg) 86%);
 }
-.fida-field {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
+@keyframes fida-drift-a {
+  to {
+    transform: translate3d(4%, 5%, 0) scale(1.12);
+  }
 }
+@keyframes fida-drift-b {
+  to {
+    transform: translate3d(10%, -6%, 0) scale(1.18);
+  }
+}
+@keyframes fida-drift-c {
+  to {
+    transform: translate3d(-9%, 7%, 0) scale(1.1);
+  }
+}
+
 .fida-hero__content {
   position: relative;
   width: 100%;
-  max-width: var(--maxw);
+  max-width: 880px;
   margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 .fida-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--accent-2);
   border: 1px solid var(--line);
@@ -352,45 +431,194 @@ body:has(.fida)::-webkit-scrollbar {
   padding: 7px 14px;
 }
 .fida-eyebrow svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
 }
 .fida-headline {
-  margin: 30px 0 0;
-  font-weight: 600;
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-  font-size: clamp(2.6rem, 8vw, 5.6rem);
-  max-width: 17ch;
+  margin: 22px 0 0;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-size: clamp(2.1rem, 6.4vw, 4.4rem);
+  max-width: 16ch;
 }
-.fida-headline .fida-headline__accent {
-  color: var(--accent);
+.fida-headline__accent {
+  /* Muted until the redaction completes, then it resolves to brand blue. */
+  color: color-mix(in oklab, var(--accent) calc(var(--resolve) * 100%), var(--faint));
+  transition: color 0.1s linear;
 }
 .fida-word {
   display: inline-block;
   overflow: hidden;
   vertical-align: top;
-  padding-bottom: 0.16em;
-  margin-bottom: -0.16em;
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
 }
 .fida-word > span {
   display: inline-block;
   will-change: transform;
 }
 .fida-sub {
-  margin: 34px 0 0;
-  max-width: 50ch;
-  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  margin: 20px auto 0;
+  max-width: 54ch;
+  font-size: clamp(0.98rem, 1.4vw, 1.15rem);
   font-weight: 500;
-  line-height: 1.65;
-  color: #b5c2d5;
+  line-height: 1.6;
+  color: #aebacc;
 }
+
+/* ---- hero demo (centerpiece) ---- */
+.fida-hero__demo {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: clamp(26px, 4vh, 40px) auto 0;
+}
+.fida-hero__scrollcue {
+  /* Sits in flow under the demo. Only shown when the viewport has room for the
+     whole hero — otherwise it would land below the fold on short screens. */
+  display: none;
+  margin-top: 14px;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+  animation: fida-cue-fade 2.4s var(--ease-io) infinite;
+}
+@media (min-width: 880px) and (min-height: 820px) {
+  .fida-hero__scrollcue {
+    display: block;
+  }
+}
+@keyframes fida-cue-fade {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.fida-demo {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 40px 90px -44px rgba(0, 0, 0, 0.9);
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+}
+.fida-demo__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--line);
+}
+.fida-demo__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+}
+.fida-demo__status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+.fida-demo__status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+.fida-demo__screen {
+  position: relative;
+  padding: 18px clamp(16px, 3vw, 24px) 22px;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: clamp(11.5px, 2.2vw, 13px);
+  line-height: 1.85;
+  min-height: 184px;
+  overflow: hidden;
+}
+.fida-demo__scan {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 42%;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--accent) 28%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+.fida-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.fida-prompt {
+  color: var(--accent-2);
+  user-select: none;
+}
+.fida-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  background: var(--accent);
+}
+.fida-line--leak {
+  opacity: 0;
+  color: var(--warm);
+}
+.fida-line--leak[data-redacted='true'] {
+  color: var(--muted);
+}
+.fida-line--blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-weight: 600;
+  color: var(--good);
+  opacity: 0;
+}
+.fida-line--blocked svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.fida-line--note {
+  color: var(--muted);
+  opacity: 0;
+}
+
+/* ---- hero cta + install ---- */
 .fida-cta-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
-  margin-top: 38px;
+  justify-content: center;
+  margin-top: 30px;
 }
 .fida-magnet {
   display: inline-flex;
@@ -404,25 +632,27 @@ body:has(.fida)::-webkit-scrollbar {
   font-weight: 600;
   font-size: 15px;
   line-height: 1;
-  padding: 15px 26px;
+  letter-spacing: -0.01em;
+  padding: 14px 24px;
   border-radius: 999px;
   border: 1px solid transparent;
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
   transition: transform 0.2s var(--ease), background-color 0.2s var(--ease),
-    color 0.2s var(--ease), border-color 0.2s var(--ease);
+    color 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 .fida-btn--primary {
   background: var(--accent);
   color: #05070d;
+  box-shadow: 0 14px 30px -16px color-mix(in oklab, var(--accent) 80%, transparent);
 }
 .fida-btn--primary:hover {
   background: var(--accent-2);
 }
 .fida-btn--ghost {
   color: var(--fg);
-  border-color: var(--line);
+  border-color: var(--line-strong);
   background: rgba(255, 255, 255, 0.02);
 }
 .fida-btn--ghost:hover {
@@ -433,7 +663,7 @@ body:has(.fida)::-webkit-scrollbar {
   display: inline-flex;
   align-items: stretch;
   gap: 8px;
-  margin-top: 26px;
+  margin-top: 18px;
   max-width: 100%;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--line);
@@ -443,8 +673,8 @@ body:has(.fida)::-webkit-scrollbar {
 .fida-install__cmd {
   display: flex;
   align-items: center;
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 13px;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 12px;
   color: var(--fg);
   white-space: nowrap;
   overflow-x: auto;
@@ -462,9 +692,9 @@ body:has(.fida)::-webkit-scrollbar {
 .fida-install__copy {
   flex: none;
   font: inherit;
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 13px;
-  font-weight: 600;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
   padding: 8px 14px;
   border-radius: 6px;
   border: 1px solid var(--line);
@@ -498,25 +728,6 @@ body:has(.fida)::-webkit-scrollbar {
   }
 }
 
-@keyframes fida-cue {
-  0% {
-    transform: scaleY(0);
-    transform-origin: top;
-  }
-  45% {
-    transform: scaleY(1);
-    transform-origin: top;
-  }
-  55% {
-    transform: scaleY(1);
-    transform-origin: bottom;
-  }
-  100% {
-    transform: scaleY(0);
-    transform-origin: bottom;
-  }
-}
-
 /* ---- statement ---- */
 .fida-statement {
   max-width: 1100px;
@@ -526,8 +737,8 @@ body:has(.fida)::-webkit-scrollbar {
 .fida-statement__line {
   margin: 0;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.22;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
   font-size: clamp(1.6rem, 4.4vw, 3.4rem);
 }
 .fida-w {
@@ -538,248 +749,156 @@ body:has(.fida)::-webkit-scrollbar {
   color: var(--accent);
 }
 
-/* ---- pinned redaction demo ---- */
-.fida-demo-sec {
-  position: relative;
-}
-.fida-demo-pin {
-  min-height: 100svh;
+/* ---- feature blocks ---- */
+.fida-feats {
+  padding: clamp(20px, 4vh, 40px) 0 clamp(40px, 8vh, 90px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 30px;
-  padding: 90px clamp(18px, 4vw, 40px);
+  gap: clamp(60px, 9vw, 120px);
 }
-.fida-demo-cap {
+.fida-feats__head {
+  max-width: 36ch;
+  margin: 0 auto;
   text-align: center;
-  max-width: 40ch;
 }
 .fida-kicker {
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: 12px;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--accent-2);
 }
-.fida-demo-cap h2 {
+.fida-feats__head h2 {
   margin: 12px 0 0;
-  font-size: clamp(1.6rem, 4vw, 2.8rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-.fida-demo {
-  position: relative;
-  width: 100%;
-  max-width: 720px;
-  text-align: left;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.02)
-  );
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.85);
-  overflow: hidden;
-  backdrop-filter: blur(8px);
-}
-.fida-demo__bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-}
-.fida-demo__dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-}
-.fida-demo__status {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-2);
-}
-.fida-demo__status::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 12px var(--accent);
-}
-.fida-demo__screen {
-  position: relative;
-  padding: 22px clamp(16px, 3vw, 26px) 26px;
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
-  font-size: clamp(12.5px, 2.4vw, 14.5px);
-  line-height: 1.95;
-  min-height: 210px;
-  overflow: hidden;
-}
-.fida-demo__scan {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 42%;
-  opacity: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--accent) 28%, transparent),
-    transparent
-  );
-  pointer-events: none;
-}
-.fida-line {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.fida-prompt {
-  color: var(--accent-2);
-  user-select: none;
-}
-.fida-caret {
-  display: inline-block;
-  width: 8px;
-  height: 1.05em;
-  vertical-align: text-bottom;
-  margin-left: 1px;
-  background: var(--accent);
-}
-.fida-line--leak {
-  opacity: 0;
-  color: var(--warm);
-}
-.fida-line--leak[data-redacted='true'] {
-  color: var(--muted);
-}
-.fida-line--blocked {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  font-weight: 600;
-  color: var(--good);
-  opacity: 0;
-}
-.fida-line--blocked svg {
-  width: 15px;
-  height: 15px;
-  flex: none;
-}
-.fida-line--note {
-  color: var(--muted);
-  opacity: 0;
-}
-
-/* ---- pillars ---- */
-.fida-pillars {
-  padding: clamp(60px, 10vh, 120px) 0 clamp(20px, 4vw, 40px);
-}
-.fida-pillars__head {
-  max-width: 32ch;
-  margin: 0 auto clamp(36px, 5vw, 60px);
-  text-align: center;
-}
-.fida-pillars__head h2 {
-  margin: 0;
   font-size: clamp(1.8rem, 4vw, 2.8rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
-.fida-pillars__head p {
+.fida-feats__head p {
   margin: 14px auto 0;
   max-width: 52ch;
   color: var(--muted);
   line-height: 1.6;
 }
-.fida-grid {
+.fida-feat {
   display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr 1.05fr;
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
 }
-.fida-card {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 26px 24px;
-  --spot: 0;
-  will-change: transform;
-  transition: border-color 0.2s var(--ease), box-shadow 0.3s var(--ease);
+.fida-feat--rev .fida-feat__copy {
+  order: 2;
 }
-.fida-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: var(--spot);
-  background: radial-gradient(
-    240px 240px at var(--mx, 50%) var(--my, 50%),
-    color-mix(in oklab, var(--accent) 22%, transparent),
-    transparent 60%
-  );
-  transition: opacity 0.24s var(--ease);
-}
-.fida-card > * {
-  position: relative;
-  z-index: 1;
-}
-.fida-card:hover {
-  border-color: color-mix(in oklab, var(--accent) 50%, var(--line));
-  box-shadow: 0 24px 50px -30px rgba(0, 0, 0, 0.8);
-}
-.fida-card__tag {
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
+.fida-feat__tag {
+  font-family: var(--font-martian), ui-monospace, monospace;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   color: var(--accent-2);
-  margin-bottom: 14px;
 }
-.fida-card h3 {
-  margin: 0 0 10px;
-  font-size: 1.2rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.fida-feat__copy h3 {
+  margin: 14px 0 0;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
-.fida-card p {
-  margin: 0;
-  padding-bottom: 24px;
-  font-size: 14.5px;
-  line-height: 1.6;
+.fida-feat__copy p {
+  margin: 14px 0 0;
+  max-width: 46ch;
+  font-size: 15px;
+  line-height: 1.65;
   color: var(--muted);
 }
-.fida-card code {
-  margin-top: auto;
-  display: block;
-  font-family: var(--font-hum-mono), ui-monospace, monospace;
+.fida-feat__cmd {
+  display: inline-block;
+  margin-top: 18px;
+  font-family: var(--font-martian), ui-monospace, monospace;
   font-size: 12.5px;
   color: var(--accent-2);
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 10px 12px;
-  white-space: nowrap;
+  padding: 8px 12px;
+}
+.fida-feat__cmd::before {
+  content: '$ ';
+  color: var(--faint);
+}
+
+/* mini-terminal */
+.fida-term {
+  position: relative;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  box-shadow: 0 34px 80px -46px rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(8px);
+  transition: border-color 0.25s var(--ease), box-shadow 0.3s var(--ease),
+    transform 0.3s var(--ease);
+}
+.fida-term:hover {
+  border-color: color-mix(in oklab, var(--accent) 42%, var(--line));
+  box-shadow: 0 40px 90px -44px rgba(0, 0, 0, 0.95);
+  transform: translateY(-4px);
+}
+.fida-term__bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.fida-term__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+}
+.fida-term__name {
+  margin-left: auto;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fida-term__screen {
+  padding: 16px clamp(14px, 2.4vw, 20px) 20px;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.95;
+  letter-spacing: -0.02em;
+  white-space: pre;
   overflow-x: auto;
   scrollbar-width: none;
 }
-.fida-card code::-webkit-scrollbar {
+.fida-term__screen::-webkit-scrollbar {
   display: none;
+}
+.fida-term__line {
+  color: var(--muted);
+}
+.fida-term__prompt {
+  color: var(--accent-2);
+  margin-right: 8px;
+  user-select: none;
+}
+.fida-term__line.is-ok {
+  color: var(--good);
+}
+.fida-term__line.is-eff {
+  color: var(--accent-2);
+}
+.fida-term__line.is-warn {
+  color: var(--warm);
+}
+.fida-term__line.is-dim {
+  color: var(--faint);
+}
+.fida-term__line.is-lead {
+  color: var(--fg);
+  font-weight: 600;
 }
 
 /* ---- agents marquee ---- */
@@ -807,8 +926,8 @@ body:has(.fida)::-webkit-scrollbar {
   gap: clamp(28px, 5vw, 64px);
   padding-right: clamp(28px, 5vw, 64px);
   font-size: clamp(1.6rem, 4vw, 3rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   color: var(--fg);
   white-space: nowrap;
 }
@@ -837,9 +956,9 @@ body:has(.fida)::-webkit-scrollbar {
 .fida-final__panel h2 {
   margin: 0;
   font-size: clamp(2rem, 5vw, 3.4rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
 }
 .fida-final__panel p {
   margin: 18px auto 0;
@@ -848,8 +967,7 @@ body:has(.fida)::-webkit-scrollbar {
   line-height: 1.6;
 }
 .fida-final .fida-cta-row {
-  justify-content: center;
-  margin-top: 30px;
+  margin-top: 28px;
 }
 
 /* ---- footer ---- */
@@ -906,9 +1024,13 @@ body:has(.fida)::-webkit-scrollbar {
 }
 
 /* ---- responsive ---- */
-@media (max-width: 860px) {
-  .fida-grid {
+@media (max-width: 880px) {
+  .fida-feat {
     grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+  .fida-feat--rev .fida-feat__copy {
+    order: 0;
   }
 }
 @media (max-width: 560px) {
@@ -936,11 +1058,15 @@ body:has(.fida)::-webkit-scrollbar {
 @media (prefers-reduced-motion: reduce) {
   .fida-caret,
   .fida-demo__status::before,
-  .fida-scrollcue i,
+  .fida-hero__scrollcue,
+  .fida-aurora-a,
+  .fida-aurora-b,
+  .fida-aurora-c,
   .fida-install__copy[data-copied='true'] {
     animation: none;
   }
-  .fida-rail {
+  .fida-rail,
+  .fida-hero__scrollcue {
     display: none;
   }
 }

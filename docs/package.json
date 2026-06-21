@@ -21,7 +21,6 @@
     "mermaid": "^11.15.0",
     "next": "latest",
     "next-themes": "^0.4.6",
-    "ogl": "^1.0.11",
     "overlayscrollbars": "^2.16.0",
     "react": "latest",
     "react-dom": "latest"
