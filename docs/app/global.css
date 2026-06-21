@@ -156,36 +156,24 @@ body:has(.fida)::-webkit-scrollbar {
   padding-inline: clamp(18px, 4vw, 40px);
 }
 
-/* ---- custom cursor (shown only while active) ---- */
-.fida-cursor-dot,
-.fida-cursor-ring {
+/* ---- scan-progress rail (right edge, fills with page scroll) ---- */
+.fida-rail {
   position: fixed;
   top: 0;
-  left: 0;
+  right: 0;
+  width: 2px;
+  height: 100svh;
+  z-index: 50;
+  background: var(--line);
   pointer-events: none;
-  z-index: 9999;
-  border-radius: 50%;
-  display: none;
 }
-html.fida-has-cursor .fida-cursor-dot,
-html.fida-has-cursor .fida-cursor-ring {
+.fida-rail > i {
   display: block;
-}
-.fida-cursor-dot {
-  width: 7px;
-  height: 7px;
-  background: var(--accent-2);
-}
-.fida-cursor-ring {
-  width: 34px;
-  height: 34px;
-  border: 1px solid color-mix(in oklab, var(--accent) 65%, transparent);
-  mix-blend-mode: difference;
-}
-html.fida-has-cursor,
-html.fida-has-cursor a,
-html.fida-has-cursor button {
-  cursor: none;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(var(--accent-2), var(--accent));
+  transform: scaleY(0);
+  transform-origin: top;
 }
 
 /* ---- intro loader ---- */
@@ -247,6 +235,23 @@ html.fida-has-cursor button {
   align-items: center;
   justify-content: space-between;
   padding: 20px clamp(18px, 4vw, 40px);
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.3s var(--ease), backdrop-filter 0.3s var(--ease),
+    border-color 0.3s var(--ease), padding 0.3s var(--ease);
+}
+.fida-nav--solid {
+  padding-block: 14px;
+  background: color-mix(in oklab, var(--bg) 72%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom-color: var(--line);
+}
+.fida-nav-sentinel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 120px;
+  pointer-events: none;
 }
 .fida-nav__brand {
   display: inline-flex;
@@ -278,6 +283,7 @@ html.fida-has-cursor button {
   gap: 22px;
 }
 .fida-nav__links a {
+  position: relative;
   font-size: 14px;
   font-weight: 500;
   color: var(--fg);
@@ -491,27 +497,7 @@ html.fida-has-cursor button {
     transform: scale(1);
   }
 }
-.fida-scrollcue {
-  position: absolute;
-  bottom: 26px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.fida-scrollcue i {
-  width: 1px;
-  height: 42px;
-  background: linear-gradient(var(--accent), transparent);
-  transform-origin: top;
-  animation: fida-cue 1.9s var(--ease-io) infinite;
-}
+
 @keyframes fida-cue {
   0% {
     transform: scaleY(0);
@@ -889,6 +875,7 @@ html.fida-has-cursor button {
   gap: 20px;
 }
 .fida-foot__links a {
+  position: relative;
   font-size: 14px;
   color: var(--muted);
   text-decoration: none;
@@ -896,6 +883,26 @@ html.fida-has-cursor button {
 }
 .fida-foot__links a:hover {
   color: var(--accent-2);
+}
+
+/* ---- animated underline draw (nav + footer links) ---- */
+.fida-nav__links a::after,
+.fida-foot__links a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.3s var(--ease);
+}
+.fida-nav__links a:hover::after,
+.fida-foot__links a:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
 }
 
 /* ---- responsive ---- */
@@ -918,7 +925,7 @@ html.fida-has-cursor button {
   }
 }
 
-/* ---- keyboard focus (custom cursor hides the pointer, so this matters) ---- */
+/* ---- keyboard focus ---- */
 .fida a:focus-visible,
 .fida button:focus-visible {
   outline: 2px solid var(--accent-2);
@@ -933,8 +940,7 @@ html.fida-has-cursor button {
   .fida-install__copy[data-copied='true'] {
     animation: none;
   }
-  .fida-cursor-dot,
-  .fida-cursor-ring {
-    display: none !important;
+  .fida-rail {
+    display: none;
   }
 }

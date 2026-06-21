@@ -8,7 +8,6 @@ import Lenis from 'lenis';
 import fidaLogo from '@assets/fida-logo.png';
 import packageJson from '../package.json';
 import { SecretField } from './secret-field';
-import { Cursor } from './cursor';
 import { Loader } from './loader';
 import Link from 'next/link';
 
@@ -130,6 +129,20 @@ export function Landing() {
     ScrollTrigger.refresh();
   }, [started]);
 
+  // Solidify the nav once the hero top scrolls away (native IO, motion-agnostic).
+  useEffect(() => {
+    const el = root.current;
+    const sentinel = el?.querySelector('.fida-nav-sentinel');
+    const nav = el?.querySelector('.fida-nav');
+    if (!sentinel || !nav) return;
+    const io = new IntersectionObserver(
+      ([e]) => nav.classList.toggle('fida-nav--solid', !e.isIntersecting),
+      { threshold: 0 }
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, []);
+
   useIsomorphicLayoutEffect(() => {
     const el = root.current;
     if (!el) return;
@@ -204,7 +217,6 @@ export function Landing() {
               '.fida-sub',
               '.fida-cta-row',
               '.fida-install',
-              '.fida-scrollcue',
               '[data-reveal]',
               '.fida-statement .fida-w',
             ],
@@ -229,7 +241,6 @@ export function Landing() {
           .from('.fida-sub', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.55')
           .from('.fida-cta-row', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.45')
           .from('.fida-install', { y: 22, autoAlpha: 0, duration: 0.7 }, '-=0.5')
-          .from('.fida-scrollcue', { autoAlpha: 0, duration: 0.6 }, '-=0.3');
         introRef.current = intro;
         if (started) intro.play();
 
@@ -289,13 +300,32 @@ export function Landing() {
             }),
         });
 
-        // ---- agent marquee (two copies → seamless -50% loop) ----
-        gsap.to('.fida-marquee__track', {
+        // ---- agent marquee — base drift; scroll velocity boosts + flips it ----
+        const marquee = gsap.to('.fida-marquee__track', {
           xPercent: -50,
           duration: 22,
           ease: 'none',
           repeat: -1,
         });
+        ScrollTrigger.create({
+          onUpdate: (self) => {
+            const v = gsap.utils.clamp(-8, 8, self.getVelocity() / 260);
+            if (v !== 0) marquee.timeScale(Math.sign(v) * Math.max(1, Math.abs(v)));
+            // ease back to the calm forward drift
+            gsap.to(marquee, { timeScale: 1, duration: 0.7, overwrite: true });
+          },
+        });
+
+        // ---- scan-progress rail — fills with whole-page scroll ----
+        gsap.fromTo(
+          '.fida-rail > i',
+          { scaleY: 0 },
+          {
+            scaleY: 1,
+            ease: 'none',
+            scrollTrigger: { trigger: el, start: 'top top', end: 'bottom bottom', scrub: true },
+          }
+        );
 
         // ---- pointer micro-interactions ----
         if (pointer) {
@@ -378,7 +408,9 @@ export function Landing() {
   return (
     <div className="fida" ref={root}>
       <Loader onDone={onLoaderDone} />
-      <Cursor />
+      <div className="fida-rail" aria-hidden="true">
+        <i />
+      </div>
 
       {/* ---------------- Nav ---------------- */}
       <nav className="fida-nav">
@@ -399,6 +431,7 @@ export function Landing() {
 
       {/* ---------------- Hero ---------------- */}
       <section className="fida-hero">
+        <span className="fida-nav-sentinel" aria-hidden="true" />
         <div className="fida-hero__field">
           <SecretField exposureRef={exposureRef} />
         </div>
@@ -465,11 +498,6 @@ export function Landing() {
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
-        </div>
-
-        <div className="fida-scrollcue" aria-hidden="true">
-          <span>scroll</span>
-          <i />
         </div>
       </section>
 
