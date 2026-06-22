@@ -190,9 +190,7 @@ fn emit_off(
     ctx: &GlobalContext,
 ) -> CliResult {
     if ctx.json {
-        let report = |r: &integrations::AgentUninstallReport| {
-            serde_json::json!({ "agent": r.id, "removed": r.removed })
-        };
+        let report = |r: &integrations::AgentUninstallReport| serde_json::json!({ "agent": r.id, "removed": r.removed });
         println!(
             "{}",
             serde_json::json!({

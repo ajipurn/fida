@@ -1356,7 +1356,11 @@ mod tests {
         assert_eq!(allow[0], "Bash(ls)");
 
         // Idempotent: a second pass finds nothing left to strip.
-        assert!(strip_claude_fida_permissions(dir.path()).unwrap().is_empty());
+        assert!(
+            strip_claude_fida_permissions(dir.path())
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
