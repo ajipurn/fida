@@ -80,6 +80,30 @@ pub async fn off(args: &OffArgs, ctx: &GlobalContext) -> CliResult {
         removed.push(integrations::uninstall_agent(spec, Scope::Global, &base)?);
     }
 
+    // Project-scope wiring (written when Fida was set up *inside* a repo) lives
+    // in the workspace, not under home, so the global pass never touches it.
+    // Clean the current workspace too — the common case is uninstalling from the
+    // affected repo; other repos are covered by the printed hint. With no agents
+    // named, sweep every known agent since project installs are not recorded in
+    // the global config.
+    let project_specs = if args.agents.is_empty() {
+        known_agents()
+    } else {
+        selected.clone()
+    };
+    let mut project_removed = Vec::new();
+    for spec in &project_specs {
+        let report = integrations::uninstall_agent(spec, Scope::Project, &workspace)?;
+        if !report.removed.is_empty() {
+            project_removed.push(report);
+        }
+    }
+
+    // Claude Code persists "always allow" for Fida's MCP tools into its own
+    // settings.local.json — not a file Fida wrote, but the dangling
+    // `mcp__fida__*` permissions can break Claude Code after uninstall.
+    let perms_changed = integrations::strip_claude_fida_permissions(&workspace)?;
+
     let target_ids: Vec<String> = selected.iter().map(|s| s.id.to_string()).collect();
     let remaining: Vec<String> = configured
         .iter()
@@ -105,7 +129,7 @@ pub async fn off(args: &OffArgs, ctx: &GlobalContext) -> CliResult {
         upsert_config(&global_path, config)?;
     }
 
-    emit_off(&removed, &remaining, ctx)
+    emit_off(&removed, &project_removed, &perms_changed, &remaining, ctx)
 }
 
 /// Remove the global setup file and any shared artifacts once no agent remains.
@@ -160,17 +184,24 @@ fn resolve_ids(ids: &[String]) -> CliResult<Vec<AgentSpec>> {
 
 fn emit_off(
     removed: &[integrations::AgentUninstallReport],
+    project_removed: &[integrations::AgentUninstallReport],
+    perms_changed: &[String],
     remaining: &[String],
     ctx: &GlobalContext,
 ) -> CliResult {
     if ctx.json {
-        let items: Vec<serde_json::Value> = removed
-            .iter()
-            .map(|r| serde_json::json!({ "agent": r.id, "removed": r.removed }))
-            .collect();
+        let report = |r: &integrations::AgentUninstallReport| {
+            serde_json::json!({ "agent": r.id, "removed": r.removed })
+        };
         println!(
             "{}",
-            serde_json::json!({ "scope": "global", "disabled": items, "remaining": remaining })
+            serde_json::json!({
+                "scope": "global",
+                "disabled": removed.iter().map(report).collect::<Vec<_>>(),
+                "project_disabled": project_removed.iter().map(report).collect::<Vec<_>>(),
+                "claude_permissions_cleaned": perms_changed,
+                "remaining": remaining,
+            })
         );
         return Ok(());
     }
@@ -186,6 +217,18 @@ fn emit_off(
         };
         println!("  - {}: {what}", r.display);
     }
+    if !project_removed.is_empty() {
+        println!("Removed project-scope wiring in this repo:");
+        for r in project_removed {
+            println!("  - {}: {}", r.display, r.removed.join(", "));
+        }
+    }
+    if !perms_changed.is_empty() {
+        println!("Cleared Fida MCP permissions Claude Code had saved:");
+        for p in perms_changed {
+            println!("  - {p}");
+        }
+    }
     if remaining.is_empty() {
         println!("No agents remain protected. Run `fida` to set up again.");
     } else {
@@ -194,10 +237,20 @@ fn emit_off(
     // A still-running editor/agent keeps the removed MCP + hook wiring in
     // memory and errors on the missing `fida` until it reloads config. Only
     // worth saying when we actually unwired something.
-    if removed.iter().any(|r| !r.removed.is_empty()) {
+    if removed.iter().any(|r| !r.removed.is_empty())
+        || !project_removed.is_empty()
+        || !perms_changed.is_empty()
+    {
         println!(
             "Restart any running editors or agents (Cursor, VS Code, Claude Code, …) so cached \
              Fida MCP/hook references are dropped."
+        );
+    }
+    // We can only reach the current workspace; project-scope files in other
+    // repos stay until `fida off` runs there too.
+    if remaining.is_empty() {
+        println!(
+            "Fida files may remain in other repos where you ran `fida on`; run `fida off` inside each."
         );
     }
     Ok(())

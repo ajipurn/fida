@@ -686,6 +686,50 @@ fn remove_mcp_server(path: &Path, map_key: &str) -> CliResult<bool> {
     Ok(removed)
 }
 
+/// Claude Code persists an "always allow" for Fida's MCP tools (e.g.
+/// `mcp__fida__fida_read`) into its own `settings.local.json` — a file Fida
+/// never writes. After uninstall those permissions dangle, referencing tools
+/// that no longer exist, which can break Claude Code on startup. Strip only the
+/// `mcp__fida__*` entries from the workspace's Claude settings, leaving the file
+/// and every other permission intact. Returns the paths actually changed.
+pub fn strip_claude_fida_permissions(workspace: &Path) -> CliResult<Vec<String>> {
+    let candidates = [
+        workspace.join(".claude/settings.local.json"),
+        workspace.join(".claude/settings.json"),
+    ];
+    let mut changed = Vec::new();
+    for path in candidates {
+        if strip_fida_permissions(&path)? {
+            changed.push(path.display().to_string());
+        }
+    }
+    Ok(changed)
+}
+
+/// Remove every `mcp__fida__*` string from the `allow`/`ask`/`deny` lists under
+/// `permissions` in a Claude settings file. Returns whether anything changed.
+fn strip_fida_permissions(path: &Path) -> CliResult<bool> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    let mut root = read_json_object(path)?;
+    let Some(perms) = root.get_mut("permissions").and_then(Value::as_object_mut) else {
+        return Ok(false);
+    };
+    let mut changed = false;
+    for key in ["allow", "ask", "deny"] {
+        if let Some(arr) = perms.get_mut(key).and_then(Value::as_array_mut) {
+            let before = arr.len();
+            arr.retain(|v| !v.as_str().is_some_and(|s| s.starts_with("mcp__fida__")));
+            changed |= arr.len() != before;
+        }
+    }
+    if changed {
+        write_json_object(path, &root)?;
+    }
+    Ok(changed)
+}
+
 /// The Fida gateway server definition.
 ///
 /// Project scope pins `--workspace` to the repo. Global scope omits it so
@@ -1289,6 +1333,30 @@ mod tests {
         let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(v["mcpServers"]["other"]["command"], "node");
         assert_eq!(v["mcpServers"]["fida"]["command"], "/usr/local/bin/fida");
+    }
+
+    #[test]
+    fn strip_claude_permissions_drops_only_fida_entries() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".claude/settings.local.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            r#"{"permissions":{"allow":["mcp__fida__fida_read","mcp__fida__fida_shell","Bash(ls)"]}}"#,
+        )
+        .unwrap();
+
+        let changed = strip_claude_fida_permissions(dir.path()).unwrap();
+        assert_eq!(changed.len(), 1, "the touched file should be reported");
+
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let allow = v["permissions"]["allow"].as_array().unwrap();
+        // Only the unrelated permission survives; both fida tools are gone.
+        assert_eq!(allow.len(), 1);
+        assert_eq!(allow[0], "Bash(ls)");
+
+        // Idempotent: a second pass finds nothing left to strip.
+        assert!(strip_claude_fida_permissions(dir.path()).unwrap().is_empty());
     }
 
     #[test]

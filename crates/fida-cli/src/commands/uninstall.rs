@@ -120,6 +120,12 @@ fn emit(
         "Restart any running editors or agents (Cursor, VS Code, Claude Code, …) so cached \
          Fida MCP/hook references are dropped."
     );
+    // The `off` pass above cleaned this repo's project-scope files, but it
+    // cannot reach repos you aren't standing in.
+    println!(
+        "Project-scope Fida files may remain in other repos; run `fida off` inside each before \
+         (or after re-installing and) removing them."
+    );
     Ok(())
 }
 
