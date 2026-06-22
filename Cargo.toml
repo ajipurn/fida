@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -12,14 +12,14 @@ description = "Fida — local-first secret leak prevention for AI coding agents"
 
 [workspace.dependencies]
 # Intra-workspace crates (dependency sinks first)
-fida-action = { path = "crates/fida-action", version = "0.1.5" }
-fida-policy = { path = "crates/fida-policy", version = "0.1.5" }
-fida-secrets = { path = "crates/fida-secrets", version = "0.1.5" }
-fida-audit = { path = "crates/fida-audit", version = "0.1.5" }
-fida-session = { path = "crates/fida-session", version = "0.1.5" }
-fida-exec = { path = "crates/fida-exec", version = "0.1.5" }
-fida-mcp = { path = "crates/fida-mcp", version = "0.1.5" }
-fida-scan = { path = "crates/fida-scan", version = "0.1.5" }
+fida-action = { path = "crates/fida-action", version = "0.1.6" }
+fida-policy = { path = "crates/fida-policy", version = "0.1.6" }
+fida-secrets = { path = "crates/fida-secrets", version = "0.1.6" }
+fida-audit = { path = "crates/fida-audit", version = "0.1.6" }
+fida-session = { path = "crates/fida-session", version = "0.1.6" }
+fida-exec = { path = "crates/fida-exec", version = "0.1.6" }
+fida-mcp = { path = "crates/fida-mcp", version = "0.1.6" }
+fida-scan = { path = "crates/fida-scan", version = "0.1.6" }
 
 # Shared serialization stack (audit JSONL, policy YAML)
 serde = { version = "1", features = ["derive"] }
