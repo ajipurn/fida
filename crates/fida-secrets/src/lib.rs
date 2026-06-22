@@ -326,15 +326,20 @@ impl Scanner {
 
 /// Whether an `.env` `KEY=value` *value* is substantial enough to treat as a
 /// secret. The `KEY=value` heuristic is shape-blind, so without this gate it
-/// flags ordinary code assignments (`last_name = "Doe"`, `port = 8080`,
+/// flags ordinary code assignments (`first_name = "John"`, `port = 8080`,
 /// `version = "1.2.3"`). A value qualifies when it is long (>= `LONG` bytes) or
-/// medium-length with at least two character classes (lower/upper/digit) — the
-/// shape of a token, not a word, number, or version string. Quotes and
-/// punctuation don't count as a class, so `"Doe"`, `"1.2.3"`, and `8080` are
-/// skipped while `abc123`, `super-secret-value`, and 32-char keys are kept.
+/// medium-length **and** mixes letters with digits — the shape of a token
+/// (`abc123`), not a name, number, or version string.
 ///
-/// Erring toward over-detection keeps leak-prevention-first: any uncertainty at
-/// or above the length floor stays flagged.
+/// The captured value includes any surrounding quotes, so a capitalized word
+/// like `"John"` reaches the medium branch; requiring a letter+digit mix (not
+/// merely "upper and lower case") is what stops every `CapitalizedName` from
+/// being treated as a secret. `"1.2.3"` has no letter and `8080` is too short,
+/// so both are skipped, while `abc123`, `super-secret-value`, and 32-char keys
+/// stay flagged.
+///
+/// Erring toward over-detection keeps leak-prevention-first: anything at or
+/// above the length floor stays flagged regardless of character mix.
 fn is_secretish_env_value(value: &str) -> bool {
     const LONG: usize = 12;
     const MED: usize = 6;
@@ -345,16 +350,15 @@ fn is_secretish_env_value(value: &str) -> bool {
     if len < MED {
         return false;
     }
-    let (mut lower, mut upper, mut digit) = (false, false, false);
+    let (mut letter, mut digit) = (false, false);
     for b in value.bytes() {
         match b {
-            b'a'..=b'z' => lower = true,
-            b'A'..=b'Z' => upper = true,
+            b'a'..=b'z' | b'A'..=b'Z' => letter = true,
             b'0'..=b'9' => digit = true,
             _ => {}
         }
     }
-    u8::from(lower) + u8::from(upper) + u8::from(digit) >= 2
+    letter && digit
 }
 
 /// Merges overlapping/touching byte ranges so each region of secret material is
@@ -612,14 +616,22 @@ mod tests {
     #[test]
     fn env_heuristic_skips_trivial_values_but_keeps_token_shaped_ones() {
         let s = scanner_with(vec![]);
-        // Ordinary code assignments with short / single-class values must NOT
-        // trip the shape-blind KEY=value heuristic (the `last_name = "Doe"`
-        // false positive from the report).
-        for benign in ["last_name = \"Doe\"", "version = \"1.2.3\"", "port = 8080"] {
+        // Ordinary code assignments must NOT trip the shape-blind KEY=value
+        // heuristic. Includes the reported false positives: `"John"` (quotes
+        // push it to 6 bytes, but no digit) and `"Doe"`, plus other names,
+        // versions, and bare numbers.
+        for benign in [
+            "first_name = \"John\"",
+            "last_name = \"Doe\"",
+            "name = \"Joshua\"",
+            "city = \"Tokyo\"",
+            "version = \"1.2.3\"",
+            "port = 8080",
+        ] {
             assert!(s.scan(benign).is_empty(), "false positive on: {benign}");
         }
-        // Substantial / token-shaped values stay flagged (leak-prevention-first):
-        // short-but-multi-class, long single-class, and a 32-char key.
+        // Token-shaped values stay flagged (leak-prevention-first): a short
+        // letter+digit mix, a long hyphenated value, and a 32-char key.
         for secret in [
             "export TOKEN=abc123",
             "API_KEY=super-secret-value",
