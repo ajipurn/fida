@@ -270,6 +270,15 @@ impl Scanner {
                     if value.start() == value.end() {
                         continue;
                     }
+                    // The `KEY=value` shape is blind to whether the value is a
+                    // credential, so an ordinary code assignment like
+                    // `last_name = "Doe"` matches too. Gate on the value being
+                    // substantial/token-shaped to drop those false positives;
+                    // real `.env` secrets (and the redteam planted values) stay
+                    // flagged. See `is_secretish_env_value`.
+                    if !is_secretish_env_value(value.as_str()) {
+                        continue;
+                    }
                     spans.push(Span {
                         start: value.start(),
                         end: value.end(),
@@ -313,6 +322,39 @@ impl Scanner {
             })
             .collect()
     }
+}
+
+/// Whether an `.env` `KEY=value` *value* is substantial enough to treat as a
+/// secret. The `KEY=value` heuristic is shape-blind, so without this gate it
+/// flags ordinary code assignments (`last_name = "Doe"`, `port = 8080`,
+/// `version = "1.2.3"`). A value qualifies when it is long (>= `LONG` bytes) or
+/// medium-length with at least two character classes (lower/upper/digit) — the
+/// shape of a token, not a word, number, or version string. Quotes and
+/// punctuation don't count as a class, so `"Doe"`, `"1.2.3"`, and `8080` are
+/// skipped while `abc123`, `super-secret-value`, and 32-char keys are kept.
+///
+/// Erring toward over-detection keeps leak-prevention-first: any uncertainty at
+/// or above the length floor stays flagged.
+fn is_secretish_env_value(value: &str) -> bool {
+    const LONG: usize = 12;
+    const MED: usize = 6;
+    let len = value.len();
+    if len >= LONG {
+        return true;
+    }
+    if len < MED {
+        return false;
+    }
+    let (mut lower, mut upper, mut digit) = (false, false, false);
+    for b in value.bytes() {
+        match b {
+            b'a'..=b'z' => lower = true,
+            b'A'..=b'Z' => upper = true,
+            b'0'..=b'9' => digit = true,
+            _ => {}
+        }
+    }
+    u8::from(lower) + u8::from(upper) + u8::from(digit) >= 2
 }
 
 /// Merges overlapping/touching byte ranges so each region of secret material is
@@ -480,9 +522,11 @@ mod tests {
             );
         }
 
-        // The full scan() (env heuristic on) still flags the .env-style line,
-        // proving scan_code's narrowing is what suppresses it.
-        assert!(!s.scan("version = \"1.2.3\"").is_empty());
+        // The full scan() (env heuristic on) still flags a real .env-style
+        // secret line that scan_code() suppresses, proving the narrowing.
+        let env_line = "API_KEY=abcdef0123456789ABCDEF";
+        assert!(!s.scan(env_line).is_empty());
+        assert!(s.scan_code(env_line).is_empty());
     }
 
     #[test]
@@ -563,6 +607,26 @@ mod tests {
         let s = scanner_with(vec![]);
         let out = s.redact("export TOKEN=abc123").unwrap();
         assert_eq!(out, format!("export TOKEN={REDACTION_MARKER}"));
+    }
+
+    #[test]
+    fn env_heuristic_skips_trivial_values_but_keeps_token_shaped_ones() {
+        let s = scanner_with(vec![]);
+        // Ordinary code assignments with short / single-class values must NOT
+        // trip the shape-blind KEY=value heuristic (the `last_name = "Doe"`
+        // false positive from the report).
+        for benign in ["last_name = \"Doe\"", "version = \"1.2.3\"", "port = 8080"] {
+            assert!(s.scan(benign).is_empty(), "false positive on: {benign}");
+        }
+        // Substantial / token-shaped values stay flagged (leak-prevention-first):
+        // short-but-multi-class, long single-class, and a 32-char key.
+        for secret in [
+            "export TOKEN=abc123",
+            "API_KEY=super-secret-value",
+            "PASSWORD=abcdefghijklmnopqrstuvwxyz012345",
+        ] {
+            assert!(!s.scan(secret).is_empty(), "missed secret in: {secret}");
+        }
     }
 
     #[test]
