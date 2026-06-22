@@ -112,6 +112,14 @@ fn emit(
             bin.display()
         );
     }
+    // A running editor/agent loaded Fida's MCP + hook wiring at startup and
+    // still references the now-deleted binary, so it errors until it reloads
+    // config. Tell the user to restart rather than leave them chasing a
+    // phantom `fida: command not found`.
+    println!(
+        "Restart any running editors or agents (Cursor, VS Code, Claude Code, …) so cached \
+         Fida MCP/hook references are dropped."
+    );
     Ok(())
 }
 

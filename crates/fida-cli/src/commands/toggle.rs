@@ -191,6 +191,15 @@ fn emit_off(
     } else {
         println!("Still protected: {}", remaining.join(", "));
     }
+    // A still-running editor/agent keeps the removed MCP + hook wiring in
+    // memory and errors on the missing `fida` until it reloads config. Only
+    // worth saying when we actually unwired something.
+    if removed.iter().any(|r| !r.removed.is_empty()) {
+        println!(
+            "Restart any running editors or agents (Cursor, VS Code, Claude Code, …) so cached \
+             Fida MCP/hook references are dropped."
+        );
+    }
     Ok(())
 }
 
