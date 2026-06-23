@@ -223,18 +223,34 @@ install_from_release() {
   version="$VERSION"
 
   if [ "$version" = "latest" ]; then
-    version="$(
-      $DL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
-        | sed -nE 's/.*"tag_name" *: *"([^"]+)".*/\1/p' \
-        | head -n1 || true
-    )"
+    # Prefer github.com's /releases/latest redirect: it resolves the tag from
+    # the final URL (.../releases/tag/<tag>) without hitting the rate-limited
+    # api.github.com — an unauthenticated API call (60/hour/IP) returning 403 is
+    # the usual cause of a failed `latest` lookup — and needs no JSON parsing.
+    version=""
+    if have curl; then
+      version="$(
+        curl -fsSLI -o /dev/null -w '%{url_effective}\n' \
+          "https://github.com/$REPO/releases/latest" 2>/dev/null \
+          | sed -n 's#.*/releases/tag/##p' \
+          | head -n1 || true
+      )"
+    fi
+    # Fall back to the JSON API (covers wget-only hosts and any redirect change).
+    if [ -z "$version" ]; then
+      version="$(
+        $DL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+          | sed -nE 's/.*"tag_name" *: *"([^"]+)".*/\1/p' \
+          | head -n1 || true
+      )"
+    fi
     if [ -z "$version" ]; then
       if [ -n "$SOURCE_DIR" ]; then
         install_from_source
         printf 'from source\n' >"$tmp/version"
         return 0
       fi
-      echo "could not determine the latest release tag for $REPO" >&2
+      echo "could not determine the latest release tag for $REPO; GitHub may be rate-limiting unauthenticated requests — retry shortly or pin a release with FIDA_VERSION=vX.Y.Z" >&2
       return 1
     fi
   fi
