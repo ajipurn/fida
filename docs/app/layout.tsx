@@ -34,11 +34,43 @@ const martian = Martian_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://fida.my.id'),
   title: {
     default: 'Fida',
     template: '%s | Fida',
   },
   description: 'Documentation for Fida, a local-first secret-leak prevention layer for AI coding agents.',
+  applicationName: 'Fida',
+  keywords: [
+    'Fida',
+    'secret leak prevention',
+    'AI coding agents',
+    'secret redaction',
+    'local-first security',
+    'Claude Code',
+    'Codex',
+    'Cursor',
+    'MCP gateway',
+  ],
+  authors: [{ name: 'Aji Purnomo' }],
+  openGraph: {
+    type: 'website',
+    siteName: 'Fida',
+    url: 'https://fida.my.id',
+    title: 'Fida — keep secret values out of AI coding agents',
+    description:
+      'A local-first secret-leak prevention layer for AI coding agents. Fida gives agents redacted safe views of sensitive files and command output.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Fida — keep secret values out of AI coding agents',
+    description: 'A local-first secret-leak prevention layer for AI coding agents.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
