@@ -304,15 +304,16 @@ export function Landing() {
             onUpdate: (self) => renderDemo(self.progress),
           });
         } else {
-          // Mobile: the hero is taller than the viewport, so pinning it would
-          // leave the demo below the fold. Pin just the demo instead — it holds
-          // centered while the redaction scrubs, so the animation is actually
-          // seen before the page scrolls on to the next section.
+          // Mobile: no pin — pinning a flex child mid-hero drops it to
+          // position:fixed and the CTA/install that follow it in the DOM
+          // overlap the pinned card. Instead map the full redaction to the
+          // demo's own travel across the viewport, so it plays start-to-finish
+          // while the demo is on screen rather than finishing after it has
+          // already scrolled past the top.
           ScrollTrigger.create({
             trigger: '.fida-hero__demo',
-            start: 'center 45%',
-            end: '+=120%',
-            pin: '.fida-hero__demo',
+            start: 'top 80%',
+            end: 'bottom 20%',
             scrub: true,
             onUpdate: (self) => renderDemo(self.progress),
           });
