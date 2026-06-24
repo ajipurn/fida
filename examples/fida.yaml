@@ -1,129 +1,80 @@
+# Example Fida policy (version 1).
+#
+# Fida is redaction-first: detected secrets are stripped from gateway file
+# reads and command output no matter what this file says. Policy is a thin
+# layer on top of that guarantee.
+#
+# The default decision is ALLOW. You only write rules for the few things you
+# want to DENY (or to allow explicitly inside a locked-down profile). Genuinely
+# dangerous actions are already refused by Fida's built-in hard-deny set and do
+# NOT need to be listed here:
+#
+#   * commands  — rm -rf /, piping a remote script to a shell, reverse shells,
+#                 dd to a device, mkfs, fork bombs, disabling Fida/SIP, …
+#   * files     — writes to .env*, private keys, .ssh, cloud credentials,
+#                 shell rc files, and other persistence/secret targets
+#   * network   — cloud-metadata endpoints and private/link-local/internal ranges
+#
+# See /docs/concepts/security-model for the full built-in hard-deny set.
 version: 1
-default_decision: ask
+default_decision: allow
 
+# Named profiles, selected with `--profile <name>`.
 profiles:
-  careful:
-    default_decision: ask
+  # Audit everything, block nothing — a safe first run.
   observe:
     mode: observe
-    default_decision: allow
+  # Lock the agent down in CI: deny by default, then allow only what you list.
   ci-readonly:
     default_decision: deny
+    commands:
+      allow:
+        - prefix: cargo test
+        - prefix: cargo build
 
 commands:
-  allow:
-    - exact: git status
-    - exact: git diff
-    - prefix: git log
-    - exact: git ls-files
-    - prefix: rg --files
-    - prefix: cargo build
-    - prefix: cargo check
-    - prefix: cargo metadata
-    - prefix: pnpm test
-    - prefix: python -m pytest
-    - prefix: cargo
-    - prefix: go
-    - prefix: bun
-
-  ask:
-    - prefix: pnpm install
-      reason: package manager installs can run lifecycle scripts
-    - prefix: npm
-      reason: npm commands can install untrusted packages from untrusted sources
-    - prefix: git commit
-      reason: creates repository history
-    - prefix: git push
-      reason: sends local changes to a remote
-
+  # Default allow covers routine commands. Add deny rules for project-specific
+  # commands you never want an agent to run unattended.
   deny:
-    - regex: "rm\\s+-rf\\s+(/|~|\\.)"
-      reason: destructive remove command
-    - regex: "curl\\s+.*\\|\\s*(sh|bash|zsh)"
-      reason: piping remote scripts into a shell is unsafe by default
-    - regex: "wget\\s+.*\\|\\s*(sh|bash|zsh)"
-      reason: piping remote scripts into a shell is unsafe by default
+    - prefix: terraform apply
+      reason: infrastructure changes must go through a human
+    - prefix: kubectl delete
+      reason: destructive cluster operation
+    - binary: shutdown
+      reason: never power off the host
+
 files:
-  read:
-    allow:
-      - "**/*"
-
+  # Reads are allowed and redacted, so read rules are rarely needed.
   write:
-    allow:
-      - src/**
-      - tests/**
-      - docs/**
-      - README.md
-
-    ask:
-      - package.json
-      - package-lock.json
-      - pnpm-lock.yaml
-      - yarn.lock
-      - Cargo.toml
-      - Cargo.lock
-      - pyproject.toml
-      - uv.lock
-      - go.mod
-      - go.sum
-      - .github/**
-      - Dockerfile
-      - docker-compose.yml
-      - infra/**
-
+    # The built-in hard-deny already blocks writes to secrets and credentials.
+    # List extra project paths you want protected from agent edits.
     deny:
-      - .env
-      - .env.*
-      - "**/*.pem"
-      - "**/*.key"
+      - "migrations/**"
+      - "**/*.lock"
 
 network:
-  allow:
-    - domain: github.com
-    - domain: api.github.com
-    - domain: registry.npmjs.org
-    - domain: pypi.org
-    - domain: crates.io
-    - domain: proxy.golang.org
-
-  ask:
-    - domain: "*"
-      reason: arbitrary network access can transmit code or local data
-
+  # Default allow lets the agent reach public registries (npm, PyPI, crates.io).
+  # Built-in hard-deny already blocks cloud metadata and private ranges. Add
+  # domains you want blocked outright:
   deny:
-    - host: 169.254.169.254
-      reason: cloud metadata service
-    - cidr: 10.0.0.0/8
-      reason: private network range
-    - cidr: 172.16.0.0/12
-      reason: private network range
-    - cidr: 192.168.0.0/16
-      reason: private network range
+    - domain: "*.internal.example.com"
+      reason: internal services are off-limits to the agent
 
 secrets:
-  redact: true
-  block_in_diffs: true
+  # Redaction is always on; these are optional custom detectors for in-house
+  # credential formats the built-in catalog does not recognize.
   patterns:
     - name: private_key
       regex: "-----BEGIN [A-Z ]*PRIVATE KEY-----"
-    - name: generic_api_key
-      regex: "(?i)(api[_-]?key|token|secret)\\s*=\\s*['\\\"]?[A-Za-z0-9_\\-]{24,}"
+    - name: acme_internal_token
+      regex: "acme_[A-Za-z0-9]{32}"
 
 mcp:
+  # Gate MCP tool calls by dotted tool name.
   tools:
-    allow:
-      - pattern: "docs.*"
-      - pattern: "search.read"
-
-    ask:
-      - pattern: "browser.*"
-        reason: browser tools can transmit data to websites
-      - pattern: "filesystem.write"
-        reason: file writes need path-level review
-
     deny:
       - pattern: "shell.*"
-        reason: shell tools must go through fida exec
+        reason: route shell through fida_shell so output is redacted
       - pattern: "secrets.*"
         reason: direct secret access is blocked
 

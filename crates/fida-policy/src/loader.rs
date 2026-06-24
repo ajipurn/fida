@@ -1472,10 +1472,10 @@ mod tests {
             compile(merged)
         });
         let policy = policy.unwrap();
-        assert_eq!(policy.commands.allow[0].rule_id, "commands.allow[0]");
         assert_eq!(policy.commands.deny[0].rule_id, "commands.deny[0]");
-        assert_eq!(policy.files.write.allow[0].rule_id, "files.write.allow[0]");
+        assert_eq!(policy.files.write.deny[0].rule_id, "files.write.deny[0]");
         assert_eq!(policy.network.deny[0].rule_id, "network.deny[0]");
+        assert_eq!(policy.mcp.tools.deny[0].rule_id, "mcp.tools.deny[0]");
     }
 
     #[test]

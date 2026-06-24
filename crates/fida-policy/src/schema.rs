@@ -324,67 +324,59 @@ mod tests {
     fn deserializes_the_example_policy() {
         let policy: PolicyFile = serde_yaml::from_str(EXAMPLE).expect("parse example");
         assert_eq!(policy.version, 1);
-        assert_eq!(policy.default_decision, Decision::Ask);
+        // Two-state default: allow unless a deny rule (or a built-in hard-deny) matches.
+        assert_eq!(policy.default_decision, Decision::Allow);
 
-        // Profiles: careful / observe / ci-readonly.
-        assert!(policy.profiles.contains_key("careful"));
+        // Profiles: observe (mode override) and ci-readonly (deny-by-default + allowlist).
         assert_eq!(policy.profiles["observe"].mode, Some(Mode::Observe));
-        assert_eq!(
-            policy.profiles["ci-readonly"].default_decision,
-            Some(Decision::Deny)
+        let ci = &policy.profiles["ci-readonly"];
+        assert_eq!(ci.default_decision, Some(Decision::Deny));
+        assert!(
+            ci.commands
+                .as_ref()
+                .unwrap()
+                .allow
+                .iter()
+                .any(|r| matches!(&r.matcher, CommandMatcher::Prefix(p) if p == "cargo test"))
         );
 
-        // Command matchers flatten correctly.
-        assert_eq!(
-            policy.commands.allow[0].matcher,
-            CommandMatcher::Exact("git status".to_string())
-        );
-        let install = policy
-            .commands
-            .ask
-            .iter()
-            .find(|r| matches!(&r.matcher, CommandMatcher::Prefix(p) if p == "pnpm install"))
-            .expect("pnpm install ask rule");
-        assert_eq!(
-            install.reason.as_deref(),
-            Some("package manager installs can run lifecycle scripts")
-        );
-        assert!(matches!(
-            policy.commands.deny[0].matcher,
-            CommandMatcher::Regex(_)
-        ));
-
-        // File globs land in the right tiers.
-        assert!(policy.files.write.allow.contains(&"src/**".to_string()));
-        assert!(policy.files.write.deny.contains(&".env".to_string()));
-
-        // Network rules flatten domain/host/cidr.
-        assert_eq!(
-            policy.network.allow[0].target,
-            NetTargetMatcher::Domain("github.com".to_string())
+        // No top-level allowlist; deny rules flatten the prefix/binary matchers.
+        assert!(policy.commands.allow.is_empty());
+        assert!(
+            policy
+                .commands
+                .deny
+                .iter()
+                .any(|r| matches!(&r.matcher, CommandMatcher::Prefix(p) if p == "terraform apply"))
         );
         assert!(
             policy
-                .network
+                .commands
                 .deny
                 .iter()
-                .any(|r| r.target == NetTargetMatcher::Host("169.254.169.254".to_string()))
+                .any(|r| matches!(&r.matcher, CommandMatcher::Binary(b) if b == "shutdown"))
         );
+
+        // File writes: deny project paths (secret files are covered by hard-deny).
+        assert!(policy.files.write.allow.is_empty());
         assert!(
             policy
-                .network
+                .files
+                .write
                 .deny
-                .iter()
-                .any(|r| matches!(&r.target, NetTargetMatcher::Cidr(c) if c == "10.0.0.0/8"))
+                .contains(&"migrations/**".to_string())
+        );
+
+        // Network: one explicit domain deny (metadata/private covered by hard-deny).
+        assert_eq!(
+            policy.network.deny[0].target,
+            NetTargetMatcher::Domain("*.internal.example.com".to_string())
         );
 
         // MCP tool patterns.
-        assert_eq!(policy.mcp.tools.allow[0].pattern, "docs.*");
         assert!(policy.mcp.tools.deny.iter().any(|p| p.pattern == "shell.*"));
 
         // Secrets + audit.
-        assert!(policy.secrets.redact);
-        assert!(policy.secrets.block_in_diffs);
         assert_eq!(policy.secrets.patterns[0].name, "private_key");
         assert_eq!(policy.audit.format, AuditFormat::Jsonl);
         assert!(policy.audit.redact_stdout);
