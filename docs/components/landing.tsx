@@ -304,11 +304,15 @@ export function Landing() {
             onUpdate: (self) => renderDemo(self.progress),
           });
         } else {
-          // No pin (mobile): scrub the demo as the hero passes through the viewport.
+          // Mobile: the hero is taller than the viewport, so pinning it would
+          // leave the demo below the fold. Pin just the demo instead — it holds
+          // centered while the redaction scrubs, so the animation is actually
+          // seen before the page scrolls on to the next section.
           ScrollTrigger.create({
-            trigger: '.fida-hero',
-            start: 'top top',
-            end: 'bottom top',
+            trigger: '.fida-hero__demo',
+            start: 'center 45%',
+            end: '+=120%',
+            pin: '.fida-hero__demo',
             scrub: true,
             onUpdate: (self) => renderDemo(self.progress),
           });

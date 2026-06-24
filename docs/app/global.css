@@ -751,7 +751,10 @@ body:has(.fida)::-webkit-scrollbar {
 
 /* ---- feature blocks ---- */
 .fida-feats {
-  padding: clamp(20px, 4vh, 40px) 0 clamp(40px, 8vh, 90px);
+  /* padding-block only: `.fida-shell` owns the inline gutter. A `padding`
+     shorthand here would zero padding-inline and the cards would touch the
+     viewport edge on any screen narrower than --maxw (i.e. mobile). */
+  padding-block: clamp(20px, 4vh, 40px) clamp(40px, 8vh, 90px);
   display: flex;
   flex-direction: column;
   gap: clamp(60px, 9vw, 120px);
@@ -973,7 +976,8 @@ body:has(.fida)::-webkit-scrollbar {
 /* ---- footer ---- */
 .fida-foot {
   border-top: 1px solid var(--line);
-  padding: 30px 0 60px;
+  /* padding-block only — keep `.fida-shell`'s inline gutter (see .fida-feats). */
+  padding-block: 30px 60px;
 }
 .fida-foot__row {
   display: flex;
