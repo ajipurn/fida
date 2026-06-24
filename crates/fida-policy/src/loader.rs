@@ -974,6 +974,12 @@ pub fn builtin_hard_denies() -> HardDenies {
 }
 
 /// Built-in destructive command patterns: (rule_id, regex, reason).
+///
+/// Matched against the space-joined argv. Patterns are anchored and shaped to
+/// high-confidence destructive/exfil/tamper shapes — precision over recall, so
+/// ordinary commands are not falsely denied. The reach is intentionally narrow:
+/// a regex over argv can never catch every variant, so this is hardening, not a
+/// guarantee (the secret-redaction + workspace-jail layers are the guarantee).
 const BUILTIN_DESTRUCTIVE_COMMANDS: &[(&str, &str, &str)] = &[
     (
         "builtin.hard_deny.destructive_rm",
@@ -990,43 +996,174 @@ const BUILTIN_DESTRUCTIVE_COMMANDS: &[(&str, &str, &str)] = &[
         r"wget\s+.*\|\s*(sh|bash|zsh)",
         "piping a remote script straight into a shell",
     ),
+    (
+        "builtin.hard_deny.eval_remote",
+        r"\beval\b[^|]*\$\(\s*(?:curl|wget)\b",
+        "evaluating a remotely fetched script",
+    ),
+    (
+        "builtin.hard_deny.dd_to_device",
+        r"\bdd\b[^|]*\bof=/dev/",
+        "writing raw data directly to a block device",
+    ),
+    (
+        "builtin.hard_deny.mkfs",
+        r"\bmkfs(\.\w+)?\b",
+        "formatting a filesystem",
+    ),
+    (
+        "builtin.hard_deny.wipefs",
+        r"\bwipefs\b",
+        "wiping filesystem signatures",
+    ),
+    (
+        "builtin.hard_deny.fork_bomb",
+        r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:",
+        "shell fork bomb",
+    ),
+    (
+        "builtin.hard_deny.reverse_shell_devtcp",
+        r"/dev/tcp/",
+        "bash /dev/tcp reverse shell",
+    ),
+    (
+        "builtin.hard_deny.nc_exec",
+        r"\bnc\b[^|]*\s-e\b",
+        "netcat -e reverse shell",
+    ),
+    (
+        "builtin.hard_deny.chmod_777_root",
+        r"\bchmod\s+-R\s+0*777\s+/(\s|$)",
+        "recursive world-writable permissions on root",
+    ),
+    (
+        "builtin.hard_deny.history_wipe",
+        r"\bhistory\s+-c\b",
+        "clearing shell history (anti-forensics)",
+    ),
+    (
+        "builtin.hard_deny.keychain_dump",
+        r"\bsecurity\s+dump-keychain\b",
+        "dumping the macOS keychain",
+    ),
+    (
+        "builtin.hard_deny.disable_sip",
+        r"\bcsrutil\s+disable\b",
+        "disabling System Integrity Protection",
+    ),
+    (
+        "builtin.hard_deny.disable_gatekeeper",
+        r"\bspctl\s+--master-disable\b",
+        "disabling Gatekeeper",
+    ),
+    (
+        "builtin.hard_deny.fida_tamper",
+        r"\bfida\s+(?:off|uninstall)\b",
+        "disabling Fida's own protection",
+    ),
 ];
 
 /// Built-in sensitive file write/delete globs: (rule_id, glob).
+///
+/// These hard-deny **writes and deletes** only: reads of the same paths fall
+/// through to the mediated redaction path (so an agent can be told `.env`
+/// exists without seeing the value, but cannot overwrite or destroy it). The
+/// set covers secret files, keys, cloud/tooling credentials, OS persistence
+/// targets, and Fida's own config (anti-tamper).
 const BUILTIN_SENSITIVE_PATHS: &[(&str, &str)] = &[
+    // Env / secret / infra-state files.
     ("builtin.hard_deny.dotenv", ".env"),
     ("builtin.hard_deny.dotenv_variant", ".env.*"),
+    ("builtin.hard_deny.env_suffix", "**/*.env"),
+    ("builtin.hard_deny.tfvars", "**/*.tfvars"),
+    ("builtin.hard_deny.tfstate", "**/*.tfstate"),
+    // Keys & certificates.
     ("builtin.hard_deny.pem", "**/*.pem"),
     ("builtin.hard_deny.key", "**/*.key"),
+    ("builtin.hard_deny.pkcs12", "**/*.p12"),
+    ("builtin.hard_deny.pfx", "**/*.pfx"),
+    ("builtin.hard_deny.keystore", "**/*.keystore"),
+    ("builtin.hard_deny.jks", "**/*.jks"),
+    ("builtin.hard_deny.ppk", "**/*.ppk"),
+    // SSH.
+    ("builtin.hard_deny.ssh_dir", "**/.ssh/**"),
     ("builtin.hard_deny.id_rsa", "**/id_rsa"),
     ("builtin.hard_deny.id_ed25519", "**/id_ed25519"),
+    ("builtin.hard_deny.id_ecdsa", "**/id_ecdsa"),
+    ("builtin.hard_deny.id_dsa", "**/id_dsa"),
+    ("builtin.hard_deny.authorized_keys", "**/authorized_keys"),
+    // Cloud / tooling credentials.
+    ("builtin.hard_deny.aws", "**/.aws/**"),
+    ("builtin.hard_deny.gcloud", "**/.config/gcloud/**"),
+    ("builtin.hard_deny.azure", "**/.azure/**"),
+    ("builtin.hard_deny.kube", "**/.kube/config"),
+    ("builtin.hard_deny.docker_config", "**/.docker/config.json"),
+    ("builtin.hard_deny.gh", "**/.config/gh/**"),
+    ("builtin.hard_deny.netrc", "**/.netrc"),
+    ("builtin.hard_deny.npmrc", "**/.npmrc"),
+    ("builtin.hard_deny.pypirc", "**/.pypirc"),
+    ("builtin.hard_deny.git_credentials", "**/.git-credentials"),
+    ("builtin.hard_deny.gnupg", "**/.gnupg/**"),
+    ("builtin.hard_deny.password_store", "**/.password-store/**"),
+    ("builtin.hard_deny.keychains", "**/Library/Keychains/**"),
+    // OS persistence / privilege targets.
+    ("builtin.hard_deny.bashrc", "**/.bashrc"),
+    ("builtin.hard_deny.zshrc", "**/.zshrc"),
+    ("builtin.hard_deny.profile", "**/.profile"),
+    ("builtin.hard_deny.bash_profile", "**/.bash_profile"),
+    (
+        "builtin.hard_deny.launch_agents",
+        "**/Library/LaunchAgents/**",
+    ),
+    ("builtin.hard_deny.etc_shadow", "/etc/shadow"),
+    ("builtin.hard_deny.etc_sudoers", "/etc/sudoers"),
+    // Fida's own config (anti-tamper).
+    ("builtin.hard_deny.fida_dir", "**/.fida/**"),
+    ("builtin.hard_deny.fida_yaml", "**/fida.yaml"),
 ];
 
-/// Built-in denied network hosts (cloud metadata service).
-const BUILTIN_DENIED_HOSTS: &[&str] = &["169.254.169.254"];
+/// Built-in denied network hosts: cloud instance-metadata services (SSRF).
+const BUILTIN_DENIED_HOSTS: &[&str] = &[
+    "169.254.169.254",          // AWS / Azure / OpenStack IMDS
+    "metadata.google.internal", // GCP metadata
+    "100.100.100.200",          // Alibaba Cloud metadata
+    "fd00:ec2::254",            // AWS IMDS over IPv6
+];
 
-/// Built-in denied private network CIDRs.
-const BUILTIN_DENIED_CIDRS: &[&str] = &["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"];
+/// Built-in denied network CIDRs: private, link-local, CGNAT, and IPv6 internal
+/// ranges — the SSRF / internal-pivot surface. Loopback (`127.0.0.0/8`, `::1`)
+/// is intentionally left allowed so local dev servers stay reachable.
+const BUILTIN_DENIED_CIDRS: &[&str] = &[
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "169.254.0.0/16", // link-local (also covers the IMDS IP)
+    "100.64.0.0/10",  // carrier-grade NAT
+    "fe80::/10",      // IPv6 link-local
+    "fc00::/7",       // IPv6 unique-local
+];
 
 // ---------------------------------------------------------------------------
 // Built-in default policy
 // ---------------------------------------------------------------------------
 
 /// The built-in default policy used when no file is found and no `--config` is
-/// given. Balanced: allow the everyday low-risk dev loop
-/// outright (so agents are not nagged for routine work), read broadly, gate
-/// writes, ask before arbitrary network access, deny writes to sensitive
-/// targets, and stop unambiguously destructive commands. Read and command
-/// output is
-/// secret-redacted and network egress is gated separately, so a permissive
-/// command surface does not by itself leak secrets or allow exfiltration.
+/// given. **Two-state by default**: anything that is not on the built-in
+/// hard-deny set (destructive/exfil/tamper commands, sensitive-file writes,
+/// cloud-metadata + private/link-local networks) is **allowed**. Reads and
+/// command output are secret-redacted regardless, and PathJail confines file
+/// access to the workspace, so a permissive command surface does not by itself
+/// leak secrets or allow exfiltration. The explicit `commands.allow` list below
+/// is kept only so routine dev commands resolve at the `explicit_allow` stage
+/// (clearer audit) — it is not what makes them safe.
 pub const BUILTIN_DEFAULT_POLICY: &str = r#"version: 1
-default_decision: ask
+default_decision: allow
 
 commands:
-  # Allow the everyday, low-risk dev loop outright. Anything not listed here
-  # still falls through to `ask`; genuinely dangerous commands are denied below
-  # (deny is evaluated before allow, so it wins even with a broad allow list).
+  # Default is allow: anything not hard-denied (or explicitly denied) runs.
+  # These explicit allows just keep the everyday dev loop resolving at the
+  # `explicit_allow` stage; genuinely dangerous commands are stopped by the
+  # built-in hard-deny set, not by this list.
   allow:
     # Read-only inspection.
     - binary: ls
@@ -1253,12 +1390,21 @@ mod tests {
     fn builtin_default_loads_and_compiles() {
         let policy = load_source(&PolicySource::BuiltinDefault, None).unwrap();
         assert_eq!(policy.version, 1);
-        assert_eq!(policy.default_decision, Decision::Ask);
+        // Two-state default: anything not hard-denied is allowed.
+        assert_eq!(policy.default_decision, Decision::Allow);
         assert!(!policy.commands.allow.is_empty());
         // Hard denies always materialized.
         assert!(!policy.hard_denies.command_patterns.is_empty());
-        assert_eq!(policy.hard_denies.network_cidrs.len(), 3);
-        assert_eq!(policy.hard_denies.network_hosts, vec!["169.254.169.254"]);
+        assert_eq!(policy.hard_denies.network_cidrs.len(), 7);
+        assert_eq!(
+            policy.hard_denies.network_hosts,
+            vec![
+                "169.254.169.254",
+                "metadata.google.internal",
+                "100.100.100.200",
+                "fd00:ec2::254",
+            ]
+        );
     }
 
     #[test]

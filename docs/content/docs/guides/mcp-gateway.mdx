@@ -8,7 +8,7 @@ Fida exposes two MCP tools for agent integrations:
 - `fida_read` reads a workspace file and redacts detected values before returning it.
 - `fida_shell` captures command output and redacts detected values before returning it.
 
-The gateway is intentionally not a command-policy firewall. It does not apply an allowlist, approval prompt, or generic command deny list. Its sole job is to ensure that the content it returns to the agent is redacted.
+The gateway's primary job is redaction: the content it returns to the agent always has detected secrets removed. It is not a configurable command-policy firewall, allowlist, or approval prompt — the default decision is allow. It does enforce the built-in [hard-deny safety net](/docs/concepts/security-model#built-in-hard-deny-safety-net): a narrow, high-confidence set of destructive, exfiltration, and SSRF actions is refused before the command runs.
 
 Start it manually when testing an integration:
 
@@ -28,10 +28,10 @@ The workspace boundary resolves symlinks and `..` traversal before reading, so a
 ## Shell flow
 
 ```text
-MCP fida_shell -> execute -> redact stdout/stderr -> audit -> response
+MCP fida_shell -> hard-deny check -> execute -> redact stdout/stderr -> audit -> response
 ```
 
-The output is captured rather than streamed. If redaction cannot complete, Fida suppresses the affected output instead of returning a partial secret.
+A command that matches the built-in hard-deny set is refused before it runs; everything else executes. The output is captured rather than streamed. If redaction cannot complete, Fida suppresses the affected output instead of returning a partial secret.
 
 The command itself runs with the real environment. A `fida_shell "psql $DATABASE_URL"` connects with the true credential because the child process expands it normally; only the captured output handed back to the model is redacted. The agent can *use* a secret to do its job without the raw value ever entering model context.
 

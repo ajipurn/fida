@@ -5,19 +5,32 @@ description: What Fida protects and the limits of its secret-leak-prevention sco
 
 Fida protects one boundary: the content an AI coding agent receives through a Fida integration. Detected secret values are redacted from gateway file reads, gateway command output, and Fida audit records.
 
-## Default posture: low friction
+## Default posture: allow, then redact
 
 Fida works with zero configuration — the built-in detector catalog protects `.env*` files, PEM private keys, and common API-key formats out of the box, with no policy file to write. A policy file is an optional override for custom patterns or path exclusions, not a prerequisite.
 
-Fida does not impose a command allowlist, block ordinary file edits, manage approvals, or act as a general network firewall. Those controls make sense in some environments, but they should not be the default behavior of a product whose promise is secret leak prevention.
+The default decision is **allow**. Fida is not a configurable command allowlist, approval system, or general network firewall, and it does not block ordinary file edits. Secrets are protected by *redaction*, not by gating every action, so routine work runs without prompts.
 
-The only deliberate block is a native read that contains detected secret content and cannot return a redacted safe view. On Codex and Claude Code, Fida can block that read and direct the agent to `fida_read` or `fida_shell` instead.
+Two things are deliberately refused on top of redaction:
+
+1. A native read whose content contains a detected secret and cannot be returned as a redacted safe view. On Codex and Claude Code, Fida blocks that read and directs the agent to `fida_read` or `fida_shell` instead.
+2. The built-in [hard-deny safety net](#built-in-hard-deny-safety-net) below.
 
 ## Detectors and redaction
 
 The built-in detector catalog covers dotenv assignments, PEM private-key blocks, and high-precision AWS, GitHub, Google, Slack, Stripe, OpenAI, Anthropic, and JWT formats. Detection is pattern-based and favors precision over recall: a credential in a shape Fida does not recognize will pass through unredacted. Treat Fida as best-effort protection against accidental exposure, not a guarantee.
 
 Redaction itself fails closed: a response Fida cannot prove is clean is suppressed rather than returned partially. Note that the native-read hook fails *open* on a malformed tool envelope — a missed backstop is preferred over breaking every tool call — so the gateway and steering remain the primary controls.
+
+## Built-in hard-deny safety net
+
+Independent of redaction, Fida always refuses a small, high-confidence set of unambiguously dangerous actions. These hard denies are overridable only by an explicit policy `allow` for the same action, and can be turned off entirely with `hard_denies_disabled`.
+
+- **Commands** — recursive force-removal of `/`, `~`, or `.`; piping a remote script into a shell; `dd` to a device; `mkfs` / `wipefs`; fork bombs; `/dev/tcp` and `nc -e` reverse shells; `history -c`; keychain dumps; disabling SIP / Gatekeeper; and disabling Fida itself.
+- **File writes and deletes** — `.env*`, private keys and certificates, `.ssh` material and `authorized_keys`, cloud and tooling credential stores (`.aws`, `.config/gcloud`, `.kube`, `.docker`, `.netrc`, `.npmrc`, …), OS persistence targets (shell rc files, LaunchAgents, `/etc/shadow`), and Fida's own config. *Reads* of these paths still flow through the redaction path rather than being blocked.
+- **Network** — cloud instance-metadata endpoints and the private, link-local, carrier-grade-NAT, and IPv6-internal ranges (the SSRF and internal-pivot surface). Loopback is left reachable so local dev servers work, and public egress is allowed.
+
+This is a narrow safety net, not a firewall. Command matching is a coarse regex over the argument vector, the lists are not exhaustive, and a determined bypass is possible. Treat it as defense-in-depth on top of redaction, not a containment guarantee.
 
 ## Coverage levels
 

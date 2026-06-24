@@ -7,7 +7,7 @@ Fida is a local-first secret leak prevention layer for AI coding agents. It inst
 
 Its promise is intentionally narrow and testable: **a *detected* secret is redacted before Fida returns content to an agent.** Detection is pattern-based and favors precision, so a credential in a format Fida does not recognize can still pass through. This is best-effort protection against accidental exposure, not a guarantee of zero leakage.
 
-Fida is not a general policy engine, agent approval layer, or development firewall. It does not decide which normal commands an agent may run, which files it may edit, or whether a package install needs approval.
+Fida is not a general policy engine, agent approval layer, or development firewall. Normal commands, file edits, and package installs run without prompts — the default decision is allow. It only refuses a narrow, built-in [hard-deny set](/docs/concepts/security-model#built-in-hard-deny-safety-net) of unambiguously destructive, exfiltration-prone, or SSRF actions.
 
 ## How it works
 

