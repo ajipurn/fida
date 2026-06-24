@@ -261,7 +261,7 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "fida-action"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "serde",
  "serde_json",
@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "fida-audit"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "chrono",
  "fida-action",
@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "fida-cli"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "chrono",
  "clap",
@@ -304,7 +304,7 @@ dependencies = [
 
 [[package]]
 name = "fida-exec"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "fida-action",
  "fida-audit",
@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "fida-mcp"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "chrono",
  "fida-action",
@@ -328,7 +328,7 @@ dependencies = [
 
 [[package]]
 name = "fida-policy"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "fida-action",
  "globset",
@@ -343,7 +343,7 @@ dependencies = [
 
 [[package]]
 name = "fida-scan"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "fida-action",
  "fida-policy",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "fida-secrets"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "fida-action",
  "fida-policy",
@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "fida-session"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "chrono",
  "fida-action",
