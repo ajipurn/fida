@@ -242,14 +242,12 @@ export function Landing() {
       {
         reduce: '(prefers-reduced-motion: reduce)',
         ok: '(prefers-reduced-motion: no-preference)',
-        pin: '(min-width: 880px) and (prefers-reduced-motion: no-preference)',
         pointer: '(hover: hover) and (pointer: fine)',
       },
       (ctx) => {
-        const { reduce, pin, pointer } = ctx.conditions as {
+        const { reduce, pointer } = ctx.conditions as {
           reduce: boolean;
           ok: boolean;
-          pin: boolean;
           pointer: boolean;
         };
 
@@ -294,30 +292,20 @@ export function Landing() {
         if (started) intro.play();
 
         // ---- pinned, scroll-scrubbed redaction demo (hero is the stage) ----
-        if (pin) {
-          ScrollTrigger.create({
-            trigger: '.fida-hero',
-            start: 'top top',
-            end: '+=130%',
-            pin: true,
-            scrub: true,
-            onUpdate: (self) => renderDemo(self.progress),
-          });
-        } else {
-          // Mobile: no pin — pinning a flex child mid-hero drops it to
-          // position:fixed and the CTA/install that follow it in the DOM
-          // overlap the pinned card. Instead map the full redaction to the
-          // demo's own travel across the viewport, so it plays start-to-finish
-          // while the demo is on screen rather than finishing after it has
-          // already scrolled past the top.
-          ScrollTrigger.create({
-            trigger: '.fida-hero__demo',
-            start: 'top 80%',
-            end: 'bottom 20%',
-            scrub: true,
-            onUpdate: (self) => renderDemo(self.progress),
-          });
-        }
+        // Pin the whole hero on every width so it holds while the redaction
+        // scrubs — the same "caught" feel on mobile as on desktop. The demo
+        // text updates in place, so the frozen card stays on screen through the
+        // scrub even though the hero is taller than a phone viewport. Pinning
+        // the section (not the nested demo card) avoids the fixed-position
+        // overlap that pinning the card itself caused.
+        ScrollTrigger.create({
+          trigger: '.fida-hero',
+          start: 'top top',
+          end: '+=130%',
+          pin: true,
+          scrub: true,
+          onUpdate: (self) => renderDemo(self.progress),
+        });
 
         // ---- statement: brighten word-by-word ----
         gsap.fromTo(
