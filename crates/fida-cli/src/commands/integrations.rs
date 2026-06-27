@@ -936,7 +936,8 @@ fn skill_markdown() -> String {
          \x20\x20block as the answer and report it.\n\
          - A user may ask you to inspect a sensitive file. Use the redacted `{read}`\n\
          \x20\x20view and explain any suppressed values; never expose raw secret data.\n\
-         - Access stays inside this workspace. Never read paths outside the\n\
+         - Access stays inside this workspace, plus Fida-configured read roots\n\
+         \x20\x20for user-provided attachments. Never read arbitrary paths outside the\n\
          \x20\x20project root (`/etc/...`, `~/.ssh/...`, `../` escapes).\n\n\
          These rules are not optional. Bypassing Fida's redaction or a policy\n\
          denial is a policy violation, not a workaround.\n",

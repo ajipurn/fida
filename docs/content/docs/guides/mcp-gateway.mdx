@@ -15,15 +15,16 @@ Start it manually when testing an integration:
 ```bash
 fida mcp serve
 fida mcp serve --workspace /path/to/repo
+fida mcp serve --read-root /path/to/attachments
 ```
 
 ## Read flow
 
 ```text
-MCP fida_read -> workspace boundary -> read file -> redact -> audit -> response
+MCP fida_read -> read-root boundary -> read file -> redact -> audit -> response
 ```
 
-The workspace boundary resolves symlinks and `..` traversal before reading, so an integration cannot accidentally request `/etc/passwd`, `~/.ssh/id_rsa`, or a path outside its configured repository.
+The read-root boundary resolves symlinks and `..` traversal before reading, so an integration cannot accidentally request `/etc/passwd`, `~/.ssh/id_rsa`, or an arbitrary path outside its configured roots. By default the only read root is the workspace. Integrations may add trusted, user-provided attachment directories with repeated `--read-root` flags or the `FIDA_READ_ROOTS` path list.
 
 ## Shell flow
 
@@ -39,4 +40,4 @@ The command itself runs with the real environment. A `fida_shell "psql $DATABASE
 
 The gateway protects only calls routed through it. Fida's managed steering asks agents to use these tools, and supported native-read hooks provide a backstop when a native tool would expose detected secret content.
 
-`fida_read` is confined to the workspace, so it will not read `~/.aws/credentials` or `~/.ssh/id_rsa` at all. Secret content in those out-of-workspace paths is caught only when an agent reaches them through a native tool guarded by a native-read hook — that is, on `enforced` agents (Codex, Claude Code). On `best_effort` agents, protection covers workspace files and content routed through the gateway, not arbitrary paths outside it. See [Agent Integrations](/docs/guides/agent-integrations) for coverage by client.
+`fida_read` is confined to the workspace plus any explicitly configured read roots, so it will not read `~/.aws/credentials` or `~/.ssh/id_rsa` unless an integration deliberately adds such a root. Secret content in other out-of-workspace paths is caught only when an agent reaches them through a native tool guarded by a native-read hook — that is, on `enforced` agents (Codex, Claude Code). On `best_effort` agents, protection covers workspace files, configured read roots, and content routed through the gateway, not arbitrary paths outside it. See [Agent Integrations](/docs/guides/agent-integrations) for coverage by client.

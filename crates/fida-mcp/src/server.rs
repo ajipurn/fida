@@ -77,7 +77,9 @@ pub struct GatewayServer {
     workspace: PathBuf,
     /// Canonical workspace root used as the PathJail boundary.
     workspace_canon: PathBuf,
-    /// When true (default), confine file access to the workspace root.
+    /// Canonical roots `fida_read` may read from. Always includes workspace.
+    read_roots_canon: Vec<PathBuf>,
+    /// When true (default), confine reads to configured roots and shell cwd to workspace.
     jail: bool,
     /// When true, wrap `fida_shell` commands in an OS sandbox (opt-in).
     sandbox: bool,
@@ -95,16 +97,37 @@ impl GatewayServer {
             policy,
             scanner,
             workspace,
-            workspace_canon,
+            workspace_canon: workspace_canon.clone(),
+            read_roots_canon: vec![workspace_canon],
             jail: true,
             sandbox: false,
         }
     }
 
+    /// Add roots that `fida_read` may read from in addition to the workspace.
+    ///
+    /// This is intentionally read-only: `fida_shell` working directories remain
+    /// confined to the workspace root. Integrations can use this for
+    /// user-provided attachment directories while preserving the default
+    /// workspace jail for everything else.
+    pub fn with_extra_read_roots<I, P>(mut self, roots: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        for root in roots {
+            let canon = canonicalize_root(root.into(), &self.workspace);
+            if !self.read_roots_canon.contains(&canon) {
+                self.read_roots_canon.push(canon);
+            }
+        }
+        self
+    }
+
     /// Enable or disable PathJail confinement (default: enabled).
     ///
     /// Disabling still evaluates policy and audits, but no longer blocks paths
-    /// resolved outside the workspace root — useful for containers or monorepos
+    /// resolved outside configured roots — useful for containers or monorepos
     /// with external mounts.
     pub fn with_jail(mut self, jail: bool) -> Self {
         self.jail = jail;
@@ -218,9 +241,9 @@ impl GatewayServer {
 
         let (abs, policy_path) = self.resolve_path(path_arg);
 
-        // PathJail: confine reads to the workspace root (resolves symlinks and
-        // `..` traversal). Checked before policy so escapes never touch disk.
-        if let Err(reason) = self.jail_check(&abs) {
+        // PathJail: confine reads to the workspace and any explicitly trusted
+        // read roots. Checked before policy so arbitrary escapes never touch disk.
+        if let Err(reason) = self.read_jail_check(&abs) {
             let decision = pathjail_decision(reason);
             self.record_path(
                 audit,
@@ -322,7 +345,7 @@ impl GatewayServer {
         };
 
         // PathJail: the command's working directory must stay in the workspace.
-        if let Err(reason) = self.jail_check(&cwd) {
+        if let Err(reason) = self.workspace_jail_check(&cwd) {
             let decision = pathjail_decision(reason);
             let policy_path = PathBuf::from(command);
             self.record_path(
@@ -515,22 +538,50 @@ impl GatewayServer {
         let _ = audit.append(&event);
     }
 
-    /// PathJail: verify `abs` resolves inside the workspace root.
+    /// PathJail: verify a read resolves inside the workspace or an extra read root.
+    fn read_jail_check(&self, abs: &Path) -> Result<(), String> {
+        let label = if self.read_roots_canon.len() == 1 {
+            "workspace root"
+        } else {
+            "configured read roots"
+        };
+        self.jail_check_against(abs, &self.read_roots_canon, label)
+    }
+
+    /// PathJail: verify a command cwd resolves inside the workspace root.
+    fn workspace_jail_check(&self, abs: &Path) -> Result<(), String> {
+        self.jail_check_against(
+            abs,
+            std::slice::from_ref(&self.workspace_canon),
+            "workspace root",
+        )
+    }
+
+    /// PathJail: verify `abs` resolves inside one of `roots`.
     ///
-    /// Returns `Ok(())` when jailing is disabled or the resolved path is within
-    /// the root, else `Err(reason)`. Symlinks and `..` are resolved first so an
-    /// escape via either is caught (mirrors lean-ctx PathJail).
-    fn jail_check(&self, abs: &Path) -> Result<(), String> {
+    /// Returns `Ok(())` when jailing is disabled or the resolved path is within a
+    /// root, else `Err(reason)`. Symlinks and `..` are resolved first so an escape
+    /// via either is caught (mirrors lean-ctx PathJail).
+    fn jail_check_against(&self, abs: &Path, roots: &[PathBuf], label: &str) -> Result<(), String> {
         if !self.jail {
             return Ok(());
         }
         let resolved = resolve_existing(abs);
-        if resolved.starts_with(&self.workspace_canon) {
+        if roots.iter().any(|root| resolved.starts_with(root)) {
             Ok(())
         } else {
-            Err(format!("`{}` is outside the workspace root", abs.display()))
+            Err(format!("`{}` is outside the {label}", abs.display()))
         }
     }
+}
+
+fn canonicalize_root(root: PathBuf, workspace: &Path) -> PathBuf {
+    let abs = if root.is_absolute() {
+        root
+    } else {
+        workspace.join(root)
+    };
+    std::fs::canonicalize(&abs).unwrap_or_else(|_| normalize_lexical(&abs))
 }
 
 /// Resolve a path for jail checking: canonicalize when it exists (following
@@ -649,7 +700,7 @@ fn tools_list_response(id: Value) -> Value {
                         "properties": {
                             "path": {
                                 "type": "string",
-                                "description": "File path, relative to the workspace or absolute."
+                                "description": "File path, relative to the workspace, or absolute under the workspace or a configured read root."
                             }
                         },
                         "required": ["path"]
@@ -910,6 +961,75 @@ audit:
         let dir = tempfile::tempdir().unwrap();
         let srv = server(dir.path());
         let resp = roundtrip(&srv, &call(READ_TOOL, json!({ "path": "/etc/hosts" })));
+        assert_eq!(resp["error"]["code"], PATHJAIL_DENIED_CODE);
+    }
+
+    #[test]
+    fn extra_read_root_allows_attachment_read() {
+        let workspace = tempfile::tempdir().unwrap();
+        let attachments = tempfile::tempdir().unwrap();
+        let attachment = attachments.path().join("pasted-text.txt");
+        std::fs::write(&attachment, "plain user-provided text").unwrap();
+
+        let srv = builtin_server(workspace.path())
+            .with_extra_read_roots([attachments.path().to_path_buf()]);
+        let resp = roundtrip(
+            &srv,
+            &call(
+                READ_TOOL,
+                json!({ "path": attachment.display().to_string() }),
+            ),
+        );
+
+        assert_eq!(resp["result"]["isError"], false);
+        assert_eq!(
+            resp["result"]["content"][0]["text"],
+            "plain user-provided text"
+        );
+    }
+
+    #[test]
+    fn extra_read_root_redacts_attachment_secrets() {
+        let workspace = tempfile::tempdir().unwrap();
+        let attachments = tempfile::tempdir().unwrap();
+        let attachment = attachments.path().join("pasted-text.txt");
+        let secret = "abcdefghijklmnopqrstuvwxyz123456";
+        std::fs::write(&attachment, format!("API_KEY={secret}\n")).unwrap();
+
+        let srv = builtin_server(workspace.path())
+            .with_extra_read_roots([attachments.path().to_path_buf()]);
+        let resp = roundtrip(
+            &srv,
+            &call(
+                READ_TOOL,
+                json!({ "path": attachment.display().to_string() }),
+            ),
+        );
+
+        assert_eq!(resp["result"]["isError"], false);
+        let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(!text.contains(secret));
+        assert!(text.contains(fida_secrets::REDACTION_MARKER));
+    }
+
+    #[test]
+    fn extra_read_root_does_not_allow_shell_cwd_escape() {
+        let workspace = tempfile::tempdir().unwrap();
+        let attachments = tempfile::tempdir().unwrap();
+
+        let srv =
+            server(workspace.path()).with_extra_read_roots([attachments.path().to_path_buf()]);
+        let resp = roundtrip(
+            &srv,
+            &call(
+                SHELL_TOOL,
+                json!({
+                    "command": "echo hi",
+                    "cwd": attachments.path().display().to_string()
+                }),
+            ),
+        );
+
         assert_eq!(resp["error"]["code"], PATHJAIL_DENIED_CODE);
     }
 

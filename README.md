@@ -48,7 +48,7 @@ API_KEY=[REDACTED]
 
 Its integrations combine three layers:
 
-1. **Redacting MCP gateway** — `fida_read` and `fida_shell` return redacted file content and captured command output. `fida_shell` still runs the real command — the child process keeps the true credential, so the work succeeds — and redacts only the output handed back to the model: the agent *uses* a secret without *seeing* it. File reads are confined to the workspace by default, including symlink and `..` escape checks; secrets outside the workspace (e.g. `~/.aws`) are covered only by the native-read hook on `enforced` agents.
+1. **Redacting MCP gateway** — `fida_read` and `fida_shell` return redacted file content and captured command output. `fida_shell` still runs the real command — the child process keeps the true credential, so the work succeeds — and redacts only the output handed back to the model: the agent *uses* a secret without *seeing* it. File reads are confined to the workspace by default, with optional explicit read roots for trusted user attachments; secrets outside those roots (e.g. `~/.aws`) are covered only by the native-read hook on `enforced` agents.
 2. **Agent steering** — a managed instruction tells the agent to use those redacting tools whenever it needs sensitive content.
 3. **Native-read hook, where supported** — Codex and Claude Code can block a native read only when Fida detects secret content that the native tool cannot redact, then direct the agent to the gateway.
 

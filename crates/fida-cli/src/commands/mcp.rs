@@ -17,7 +17,7 @@
 
 use std::collections::BTreeSet;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use clap::{Args, Subcommand};
@@ -85,6 +85,11 @@ pub struct ServeArgs {
     /// resolve against. Defaults to the current directory.
     #[arg(long)]
     pub workspace: Option<std::path::PathBuf>,
+
+    /// Additional root `fida_read` may read from, such as a user attachment
+    /// directory. Repeatable. Relative paths resolve against the workspace.
+    #[arg(long = "read-root", value_name = "PATH")]
+    pub read_roots: Vec<std::path::PathBuf>,
 }
 
 /// Dispatch the `mcp` subcommands (task 19.8).
@@ -383,7 +388,9 @@ fn serve(args: &ServeArgs, ctx: &GlobalContext) -> CliResult {
         std::env::var("FIDA_SANDBOX").ok().as_deref(),
         Some("1") | Some("true") | Some("yes")
     );
+    let read_roots = collect_read_roots(&args.read_roots);
     let server = GatewayServer::new(policy, workspace)
+        .with_extra_read_roots(read_roots)
         .with_jail(jail)
         .with_sandbox(sandbox);
 
@@ -413,6 +420,24 @@ fn gateway_session_id() -> String {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     format!("mcp-gateway-{secs}")
+}
+
+fn collect_read_roots(cli_roots: &[PathBuf]) -> Vec<PathBuf> {
+    let mut roots = cli_roots.to_vec();
+    if let Some(raw) = std::env::var_os("FIDA_READ_ROOTS") {
+        roots.extend(std::env::split_paths(&raw));
+    }
+    dedupe_paths(roots)
+}
+
+fn dedupe_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for path in paths {
+        if !out.contains(&path) {
+            out.push(path);
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -527,6 +552,16 @@ audit:
         let path = dir.path().join(name);
         std::fs::write(&path, contents).unwrap();
         path
+    }
+
+    #[test]
+    fn read_root_dedupe_preserves_order() {
+        let a = std::path::PathBuf::from("/tmp/a");
+        let b = std::path::PathBuf::from("/tmp/b");
+        assert_eq!(
+            dedupe_paths(vec![a.clone(), b.clone(), a.clone()]),
+            vec![a, b]
+        );
     }
 
     // --- mcp explain-tool ----------------------------------

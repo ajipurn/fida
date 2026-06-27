@@ -31,6 +31,9 @@ fida scan --exclude vendor        # prune an extra directory subtree
 ```bash
 fida mcp serve
 fida mcp serve --workspace /path/to/repo
+fida mcp serve --read-root /path/to/attachments
 ```
 
 The gateway serves `fida_read` and `fida_shell`: their returned file content and captured command output are redacted before an agent receives them.
+
+`--read-root` may be repeated to let `fida_read` handle trusted, user-provided files outside the repo, such as attachment directories. You can also provide roots through `FIDA_READ_ROOTS`, using the operating system's path-list separator. Command working directories remain confined to the workspace.
