@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { IBM_Plex_Sans, IBM_Plex_Mono, Martian_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
 import { RootProvider } from 'fumadocs-ui/provider/next';
+import { Analytics } from '@vercel/analytics/next';
 import './global.css';
 
 // /docs keeps IBM Plex — proven for long-form reading and code blocks.
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <RootProvider search={{ options: { api: '/api/search' } }}>
           {children}
         </RootProvider>
+        <Analytics />
       </body>
     </html>
   );
