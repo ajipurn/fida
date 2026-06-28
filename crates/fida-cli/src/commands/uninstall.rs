@@ -227,7 +227,10 @@ fn emit(
         println!("  - removed config {}", dir.display());
     }
     if !removed_dirs.is_empty() {
-        println!("  - removed {} project .fida folder(s):", removed_dirs.len());
+        println!(
+            "  - removed {} project .fida folder(s):",
+            removed_dirs.len()
+        );
         for dir in removed_dirs {
             println!("      {}", dir.display());
         }
