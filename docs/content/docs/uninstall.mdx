@@ -1,6 +1,6 @@
 ---
 title: Uninstall
-description: Remove Fida completely — agent integrations, config, and the binary.
+description: Remove Fida completely — project .fida folders, agent integrations, config, and the binary.
 ---
 
 ## Remove Fida
@@ -9,30 +9,67 @@ description: Remove Fida completely — agent integrations, config, and the bina
 fida uninstall
 ```
 
-`fida uninstall` removes Fida in one step:
+`fida uninstall` removes Fida in one pass:
 
-1. **Unwires every agent** — the same cleanup as `fida off`: agent integrations (gateway, skill, hook), setup metadata, and the shell-rc blocks. Non-Fida config is preserved.
-2. **Deletes the global config directory** — `~/.config/fida` (or whatever `FIDA_HOME` / `XDG_CONFIG_HOME` resolve to).
-3. **Deletes the `fida` binary** — the running executable itself.
+1. **Scans `$HOME` (and the current repo) for project `.fida` folders** — read-only, so it can list exactly what will be deleted before you confirm. Heavy directories (`node_modules`, `target`, `.git`, `Library`, …) are skipped, and only a `.fida` holding a Fida marker (`integrations/`, `policy.yaml`, or `sessions/`) is matched, so a stray folder named `.fida` is never touched.
+2. **Unwires every agent** — the same cleanup as `fida off`: agent integrations (gateway, skill, hook), setup metadata, and the shell-rc blocks. Non-Fida config is preserved.
+3. **Deletes each project `.fida` folder wholesale** — including `policy.yaml`, `sessions/`, and `integrations/`. This clears the orphan files that `fida off` leaves behind in every repo.
+4. **Deletes the global config directory** — `~/.config/fida` (or whatever `FIDA_HOME` / `XDG_CONFIG_HOME` resolve to).
+5. **Deletes the `fida` binary** — the running executable itself.
 
-It asks for confirmation first. Pass `--yes` to skip the prompt (required when stdin is not a terminal, e.g. in CI):
+It asks for confirmation first, listing every `.fida` folder it found. Pass `--yes` to skip the prompt (required when stdin is not a terminal, e.g. in CI):
 
 ```bash
 fida uninstall --yes
-fida uninstall --json      # machine-readable result
+fida uninstall --json      # machine-readable result, incl. project_fida_removed[]
 ```
+
+**Warning:** deleting a project `.fida` removes your hand-written `policy.yaml` too. Back it up first if you want to keep a custom policy, or use `fida off` instead if you only want to disable protection.
 
 ## Just disabling, not removing?
 
-To turn protection off without deleting the binary, use `fida off` instead — it unwires agents but leaves `fida` installed so you can re-enable later with `fida` or `fida on`.
+To turn protection off without deleting the binary, use `fida off` instead — it unwires agents but leaves `fida` installed (and keeps each repo's `.fida/policy.yaml`) so you can re-enable later with `fida` or `fida on`.
 
 ```bash
 fida off                   # disable Fida, keep the binary
 fida off <agent>           # disable a single agent
 ```
 
+## Verify the cleanup
+
+Run these in a normal terminal **after uninstall, from outside the Fida source repo** (that repo's own source and docs contain these strings and will show up as false positives):
+
+```bash
+# 1. binary gone from PATH?
+which fida || echo "OK binary clean"
+
+# 2. global config dir gone?
+ls -d ~/.config/fida "${FIDA_HOME:-/nope}" "${XDG_CONFIG_HOME:-$HOME/.config}/fida" 2>/dev/null \
+  || echo "OK global config clean"
+
+# 3. any project .fida folders left under $HOME? (prints leftovers; empty = clean)
+find ~ -type d -name .fida \
+  -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/Library/*' 2>/dev/null
+
+# 4. leftover wiring in agent configs / shell rc? (prints files; empty = clean)
+grep -rIls -e 'FIDA:BEGIN' -e 'mcp__fida__' -e '# >>> fida initialize' -e '"fida":' \
+  ~/.zshrc ~/.bashrc ~/.config/fish/config.fish \
+  ~/.claude ~/.cursor ~/.codeium ~/.config/Code 2>/dev/null
+```
+
+A clean uninstall prints nothing for steps 3 and 4, and `OK …` for steps 1 and 2. Each marker maps to one artifact class:
+
+| Marker | What it is |
+| --- | --- |
+| `.fida` directory | per-project policy, sessions, and integrations |
+| `~/.config/fida` (or `$FIDA_HOME` / `$XDG_CONFIG_HOME/fida`) | global config |
+| `FIDA:BEGIN` | skill/rules block in `CLAUDE.md` / `AGENTS.md` / `.cursorrules` |
+| `mcp__fida__` | Claude's saved MCP permissions |
+| `"fida":` | MCP server entry in `mcp.json` / `settings.json` |
+| `# >>> fida initialize` | legacy shell-rc block |
+
 ## What uninstall cannot undo
 
-`fida uninstall` does not edit your PATH. If `install.sh` added its install directory (`~/.local/bin` by default) to your shell profile and you only added it for Fida, remove that line yourself.
-
-On Windows, a running executable cannot delete itself; `fida uninstall` reports `binary_removed: false` and you delete `fida.exe` manually.
+- **Repos outside `$HOME`.** The scan reaches everything under `$HOME` plus the repo you run it from. A project parked elsewhere isn't reached — delete its `.fida/` manually, or widen the check: `find /path/to/repos -type d -name .fida`.
+- **Your PATH.** `fida uninstall` does not edit your PATH. If `install.sh` added its install directory (`~/.local/bin` by default) to your shell profile and you only added it for Fida, remove that line yourself.
+- **A self-deleting binary on Windows.** A running executable cannot delete itself there; `fida uninstall` reports `binary_removed: false` and you delete `fida.exe` manually.
